@@ -8,8 +8,45 @@ launchd unit for the LAN.
 
 - **Checkpoints** (`python3 -m mac convert`): 4-bit, 65 GB, 4.544 bits a weight (routers and shared-expert gates
   8-bit); 8-bit, 122 GB, 8.528 bits a weight. Each with its MTP layer beside it (`-mtp`, 1.3 and 2.5 GB).
-- **Status:** being brought up (2026-10-20). Measurements and the checks table follow in this file once the server
-  has been through them; [PLAN.md](PLAN.md) is the work log.
+- **Served and measured** on one M5 Ultra (2026-10-20, the 4-bit checkpoint, drafts off): below. [PLAN.md](PLAN.md) is
+  the work log.
+
+## Measured on this Mac
+
+Mac Studio M5 Ultra (256 GB), vllm-mlx 0.6.0 on mlx-vlm 0.7.9 and mlx-lm 0.31.3, the 4-bit checkpoint, greedy, thinking
+off. The server loads in 12 s. The recipe harness's ruler (256-token replies, a distinct prompt a phase; run
+`20261020-111724-mlx-speed`, target `ornith-15-122b-m5`), in tok/s summed over the streams:
+
+| Streams | prose | code | structured | list | first token |
+|---|---|---|---|---|---|
+| 1 | 66.2 | 66.6 | 66.4 | 66.6 | 0.08-0.11 s |
+| 2 | 113.4 | 113.2 | 113.2 | 114.0 | 0.14-0.19 s |
+| 4 | 175.9 | 178.1 | 177.6 | 180.4 | 0.25-0.35 s |
+
+Prompts: a 20,016-token turn takes 5.8-6.3 s (about 3,300 tok/s); the next turn of that conversation answers in 0.16 s
+from the prefix cache, and two such conversations at once both resume (0.27 s).
+
+| Feature | Check through the chat API |
+|---|---|
+| Text | 17*23 answered with thinking off and on (`reasoning_content` present); plain greedy decoding is deterministic |
+| Tools | a `get_weather` call with the right argument (`--tool-call-parser qwen3.5`) |
+| Structured output | a `json_schema` reply parses |
+| Images | PNG, JPEG and WebP data URLs answered by colour; text in an image read exactly; three circles counted |
+| Prompt cache | a 20k-token conversation's later turns resume in 0.16 s (with the shim below) |
+| Streaming, concurrency | streamed chunks; two requests at once each right |
+
+Known limits:
+- **The MTP drafter is off.** Through vllm-mlx's multimodal drafter the checkpoint's MTP layer drafts at 69-71%
+  acceptance (code 72-80 tok/s, prose 56-58), but its greedy replies differ from plain ones, so `mtp = false` until
+  that is exact. `tools/patches/experimental-*` holds the two-line change that makes the drafter run at all.
+- **A conversation with an image re-reads its prompt each turn** (vllm-mlx keeps no prefix cache for multimodal
+  requests): a 20k-token turn with an image takes 6 s and so does the next turn. Text-only conversations resume.
+- **An exact repeat of a long prompt is not served from the cache** (vllm-mlx falls back to a full pass when it
+  cannot rewind an exact hit); a continuation of it is.
+- **The shim.** vllm-mlx batches requests with mlx-lm's cache classes, and mlx-vlm's Qwen3.5 DeltaNet layers call
+  two methods on them that only mlx-vlm's class has, so a resumed turn failed with a 500. `tools/sitecustomize.py`
+  (installed by `python3 -m mac venv`) gives mlx-lm's class those two methods.
+- **Quality:** not measured yet; the harness quality suite has not been run on this server.
 
 ## Quick start
 

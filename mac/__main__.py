@@ -2,6 +2,7 @@
 
 import argparse
 import shlex
+import shutil
 import subprocess
 import sys
 
@@ -35,6 +36,11 @@ def main(argv: list[str] | None = None) -> int:
                     ["uv", "pip", "install", "--python", f"{root}/.venv/bin/python", "-r", f"{root}/requirements.txt"]):
             print("+", shlex.join(cmd), flush=True)
             subprocess.run(cmd, check=True)
+        # the shim mlx-vlm's recurrent layers need on vllm-mlx's caches (tools/sitecustomize.py says why)
+        site = subprocess.run([f"{root}/.venv/bin/python", "-c", "import sysconfig; print(sysconfig.get_paths()['purelib'])"],
+                              capture_output=True, text=True, check=True).stdout.strip()
+        shutil.copy(config.ROOT / "tools" / "sitecustomize.py", site)
+        print(f"+ tools/sitecustomize.py -> {site}")
     elif a.cmd == "convert":
         if not (s.source_snapshot / "model.safetensors.index.json").exists():
             raise SystemExit(f"{s.source_repo}@{s.source_revision[:8]} is not in the Hugging Face cache: "

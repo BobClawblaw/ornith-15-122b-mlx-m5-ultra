@@ -24,7 +24,7 @@ class Settings:
     max_tokens: int = 32768
     max_request_tokens: int = 262144
     prefix_cache: bool = True
-    mtp: bool = True
+    mtp: bool = False
     mtp_draft_tokens: int = 3
     kv_cache_bits: int = 0
     reasoning_parser: str = "qwen3"

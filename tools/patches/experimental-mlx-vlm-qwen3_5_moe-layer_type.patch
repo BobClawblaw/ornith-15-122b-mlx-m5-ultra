@@ -1,0 +1,11 @@
+--- a/mlx_vlm/models/qwen3_5_moe/language.py
++++ b/mlx_vlm/models/qwen3_5_moe/language.py
+@@ -56,6 +56,8 @@
+     def __init__(self, args: TextConfig, layer_idx: int):
+         super().__init__()
+         self.is_linear = (layer_idx + 1) % args.full_attention_interval != 0
++        # the MTP drafter keys a layer's shared KV state by this (mlx_vlm/speculative/mtp.py)
++        self.layer_type = "linear_attention" if self.is_linear else "full_attention"
+         if self.is_linear:
+             self.linear_attn = Qwen3_5MoeGatedDeltaNet(args)
+         else:
