@@ -21,17 +21,18 @@ streams' caches as they fill. The recipe harness's ruler (256-token greedy repli
 
 | Streams | prose | code | structured | list | first token |
 |---|---|---|---|---|---|
-| 1, drafts off (run `20261020-140142`) | 85.2 | 85.0 | 85.2 | 85.2 | 0.05-0.07 s |
-| 2, drafts off | 139.1 | 145.1 | 151.7 | 141.9 | 0.07-0.10 s |
-| 4, drafts off | 218.1 | 223.1 | 237.5 | 226.9 | 0.12-0.16 s |
-| 1, drafts on (run `20261020-140007`) | 85.5 | 316.2 | 158.2 | 177.4 | 0.05-0.07 s |
-| 2, drafts on | 154.2 | 272.2 | 239.2 | 267.0 | 0.08-0.11 s |
-| 4, drafts on | 205.0 | 366.7 | 379.7 | 382.1 | 0.13-0.17 s |
+| 1, drafts off (run `20261020-141648`) | 95.6 | 95.4 | 95.1 | 95.5 | 0.05-0.07 s |
+| 2, drafts off | 152.9 | 159.9 | 167.7 | 156.4 | 0.07-0.10 s |
+| 4, drafts off | 234.0 | 240.1 | 253.3 | 241.6 | 0.12-0.17 s |
+| 1, drafts on (run `20261020-141514`) | 89.7 | 314.3 | 151.1 | 177.6 | 0.05-0.07 s |
+| 2, drafts on | 169.9 | 285.0 | 246.4 | 282.2 | 0.08-0.11 s |
+| 4, drafts on | 204.5 | 357.4 | 361.4 | 389.7 | 0.13-0.17 s |
 
 DFlash2 drafts one stream (the others decode plainly); a drafted greedy reply is identical to the undrafted one. The
 drafter lands 4.3 tokens a round on prose and 9.7 on code (a 300-word story 115 tok/s, a CSV parser 274, a list 201,
 a JSON array 248; PLAN.md). On this routed model a 16-row verify window reads most experts' weights, so a round costs
-about three plain steps: prose breaks even at one stream, code runs 3.7x plain.
+about three plain steps: prose about breaks even at one stream, code runs 3.3x plain. A decode step is 10 ms of GPU
+time: the shared expert runs as a ninth slot of the experts' kernel beside the eight routed ones.
 
 Prompts: 2,576 tok/s at the engine's 1,024-row chunks (8,192 tokens in 3.2 s; `tf-qwen27-run`, PLAN.md); through the server a
 19,235-token turn took 10.9 s, its next turn 0.10 s from the cache, an exact repeat 0.5 s.

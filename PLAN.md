@@ -120,3 +120,12 @@ Each entry says what was done, how it was measured, and what it found. Newest la
   139.1/145.1/151.7/141.9, four 218.1/223.1/237.5/226.9. `zig build test` and the lean check pass; a verify window on
   the sorted expert path was tried and dropped: its sums differ from a lone row's, which broke drafted == plain.
   There is no per-request draft switch in the server; `drafts = false` restarts without the drafter.
+- Shared expert folded (2026-10-20 14:20, engine 0d37dcb2, comments after): decode rows run the shared expert as a
+  ninth slot of the experts' indexed row kernel (a core variant with an extra matrix at id `experts`), dropping the
+  two small lane products a layer (gate+up 2,048x3,072 and down 3,072x1,024 took 17 and 14 us for 3 and 1.6 MB; the
+  slot costs about 8). Prompt chunks keep the shared expert on the lane kernels. A decode step went from 12.2 to
+  10.0 ms of GPU time; decode logits still match the reference (teacher-forced KL 0.0015 and 0.0007, top-1 100%).
+  Rulers: plain run 20261020-141648, one stream 95.6/95.4/95.1/95.5 (prose/code/structured/list), two
+  152.9/159.9/167.7/156.4, four 234.0/240.1/253.3/241.6; drafted run 20261020-141514, one 89.7/314.3/151.1/177.6,
+  two 169.9/285.0/246.4/282.2, four 204.5/357.4/361.4/389.7. `zig build test`, test-kernel-contract and test-golden
+  pass; the lean check adds nothing.
