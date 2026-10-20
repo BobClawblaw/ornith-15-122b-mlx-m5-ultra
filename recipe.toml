@@ -1,0 +1,32 @@
+# The recipe's defaults. `local.toml` next to this file overrides them for one Mac (copy local.example.toml); an
+# environment variable of the same name in upper case overrides both (PORT=8891 python3 -m mac up).
+
+[model]
+# Ornith's release (bf16, 250 GB), converted by `python3 -m mac convert` (mlx-vlm, affine groups of 64, the MTP layer kept)
+source_repo = "ornith-ai/Ornith-1.5-122B"
+source_revision = "346ec829dd63e107aad8771d74e885e901cec95d"
+served_name = "Ornith-1.5-122B"
+model_dir = "~/models/Ornith-1.5-122B-MLX-4bit"   # or the 8-bit one; `convert` writes both names from `bits`
+bits = 4
+group_size = 64
+
+[engine]
+# vllm-mlx on mlx-vlm and mlx-lm (requirements.txt pins them); the venv `python3 -m mac venv` makes next to this file
+python = ".venv/bin/python"
+
+[local]
+host = "127.0.0.1"
+port = 8891
+cache = "~/.cache/ornith-15-122b"
+
+[serve]
+max_num_seqs = 4                 # requests decoded together (continuous batching)
+max_tokens = 32768               # a reply's default ceiling
+max_request_tokens = 262144      # the checkpoint's window
+prefix_cache = true              # kept prompt states between turns
+mtp = true                       # the checkpoint's MTP layer drafts (requires the converted mtp tensors beside the model)
+mtp_draft_tokens = 3
+kv_cache_bits = 0                # 0: bf16 KV; 8 or 4 quantizes the KV cache
+reasoning_parser = "qwen3"       # reasoning_content from the template's thinking blocks
+extra_args = ""
+memory_margin_gib = 8

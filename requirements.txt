@@ -1,0 +1,7 @@
+# The serving stack, as measured (README): `python3 -m mac venv` installs it with uv into .venv
+vllm-mlx==0.6.0
+mlx-vlm==0.7.9
+mlx-lm==0.32.2
+mlx==0.32.4
+huggingface_hub
+pillow

@@ -1,0 +1,8 @@
+# Copy to local.toml (git-ignored) and change what differs on this Mac.
+[model]
+model_dir = "~/models/Ornith-1.5-122B-MLX-4bit"   # or ~/models/Ornith-1.5-122B-MLX-8bit
+bits = 4
+
+[local]
+host = "127.0.0.1"
+port = 8891
