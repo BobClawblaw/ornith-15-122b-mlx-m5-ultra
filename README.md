@@ -21,18 +21,17 @@ streams' caches as they fill. The recipe harness's ruler (256-token greedy repli
 
 | Streams | prose | code | structured | list | first token |
 |---|---|---|---|---|---|
-| 1, drafts off (run `20261020-133912`) | 85.0 | 84.8 | 84.6 | 84.9 | 0.05-0.07 s |
-| 2, drafts off | 139.2 | 143.6 | 146.2 | 141.7 | 0.07-0.10 s |
-| 4, drafts off | 218.7 | 223.6 | 238.1 | 227.3 | 0.12-0.16 s |
-| 1, drafts on (run `20261020-133658`) | 42.6 | 84.1 | 70.5 | 71.4 | 0.05-0.07 s |
-| 2, drafts on | 155.1 | 252.2 | 165.3 | 246.5 | 0.08-0.10 s |
-| 4, drafts on | 194.5 | 363.7 | 329.6 | 322.7 | 0.13-0.17 s |
+| 1, drafts off (run `20261020-140142`) | 85.2 | 85.0 | 85.2 | 85.2 | 0.05-0.07 s |
+| 2, drafts off | 139.1 | 145.1 | 151.7 | 141.9 | 0.07-0.10 s |
+| 4, drafts off | 218.1 | 223.1 | 237.5 | 226.9 | 0.12-0.16 s |
+| 1, drafts on (run `20261020-140007`) | 85.5 | 316.2 | 158.2 | 177.4 | 0.05-0.07 s |
+| 2, drafts on | 154.2 | 272.2 | 239.2 | 267.0 | 0.08-0.11 s |
+| 4, drafts on | 205.0 | 366.7 | 379.7 | 382.1 | 0.13-0.17 s |
 
-DFlash2 drafts one stream (the others decode plainly); a drafted greedy reply is identical to the undrafted one. On
-this routed model a drafted window reads most experts' weights, so a round costs about three plain steps and pays only
-when three or more drafts land: code, lists and structured output gain (up to 1.6x at four streams), prose loses
-(a lone prose stream is faster with drafts off: send `"drafts": false` with the request, or set `drafts = false`).
-Other prompts gave a lone stream prose 66, code 113, list 143 and structured 114 tok/s with drafts (PLAN.md).
+DFlash2 drafts one stream (the others decode plainly); a drafted greedy reply is identical to the undrafted one. The
+drafter lands 4.3 tokens a round on prose and 9.7 on code (a 300-word story 115 tok/s, a CSV parser 274, a list 201,
+a JSON array 248; PLAN.md). On this routed model a 16-row verify window reads most experts' weights, so a round costs
+about three plain steps: prose breaks even at one stream, code runs 3.7x plain.
 
 Prompts: 2,576 tok/s at the engine's 1,024-row chunks (8,192 tokens in 3.2 s; `tf-qwen27-run`, PLAN.md); through the server a
 19,235-token turn took 10.9 s, its next turn 0.10 s from the cache, an exact repeat 0.5 s.

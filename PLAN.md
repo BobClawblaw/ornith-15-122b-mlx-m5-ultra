@@ -109,3 +109,14 @@ Each entry says what was done, how it was measured, and what it found. Newest la
   prompt lands 1.3-1.8 drafts a round (its code prompt 5.7). Other prose prompts did better (66 tok/s, 2.3 a round).
   `zig build test`, test-golden, fuzz-cortheon, test-kernel-contract and the lean check (zero new findings) pass on
   that commit; the full-depth logits check is unchanged (KL 0.0017 and 0.0035).
+- Drafter fixed (2026-10-20 14:00, engine e077860c, comments only after): the tree commits gathered five tap planes
+  (the 27B's count) of Ornith's eight, so the drafter's committed context was wrong past the fifth tap and it landed
+  1.3-5.7 tokens a round. `tf-qwen27-dflash-refine` showed the drafter itself sound (top-1 by block position 0.92,
+  0.82, 0.75 ... 0.35; a straight top-1 chain lands 6.9 a block on the CSV prompt). With every plane committed the
+  prototype lands 6.1 a round on code and 3.7 on prose (children 4, tau 1.5 best of a sweep), replies identical to
+  plain; served: a 300-word story 115 tok/s (4.3 a round), a CSV parser 274 (9.7), a list 201, a JSON array 248.
+  Rulers on that engine: drafted run 20261020-140007, one stream 85.5/316.2/158.2/177.4 (prose/code/structured/list),
+  two 154.2/272.2/239.2/267.0, four 205.0/366.7/379.7/382.1; plain run 20261020-140142, one 85.2/85.0/85.2/85.2, two
+  139.1/145.1/151.7/141.9, four 218.1/223.1/237.5/226.9. `zig build test` and the lean check pass; a verify window on
+  the sorted expert path was tried and dropped: its sums differ from a lone row's, which broke drafted == plain.
+  There is no per-request draft switch in the server; `drafts = false` restarts without the drafter.
