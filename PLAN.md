@@ -54,4 +54,13 @@ Each entry says what was done, how it was measured, and what it found. Newest la
 - Cut-over (2026-10-20 11:20): Ornith serves :8888 under launchd (`com.ornith.ornith-15-122b`); the DeepSeek
   LaunchAgent's plist was moved to ~/.cache/tensorfold-deepseek-v41/retired/. Hermes' config still names the DeepSeek
   model (an edit the session could not make); its base_url already points at :8888.
+- The drafter, looked at again (2026-10-20): a block verify is exact against one-token decode on this model (47/47
+  argmax, plain forward and mlx-vlm's batch-invariant verifier), rounds with no drafts through mlx-vlm's transaction
+  are exact (0.00 logit difference), and the invariant path gives identical greedy tokens for no, wrong, right and
+  mixed drafts (120 tokens, two prompts). But the invariant forward's logits sit about one logit from ordinary
+  decode's at every position (two reduction orders), parting at token 59 (essay) and 35 (code). Served through
+  vllm-mlx with MTP on, block sizes 1, 2 and 3 behave the same (acceptance 71%; prose 60.5-61.5 tok/s, code
+  75-80; plain 63.5 and 63.7); a prompt's reply differs between its cold run, its first cached run and its second
+  (the same pattern at every block size), because prefill and resumed states come from the ordinary forward and the
+  verify from the invariant one. Kept off by default; patch 0001 is applied by `venv` so `mtp = true` works.
 

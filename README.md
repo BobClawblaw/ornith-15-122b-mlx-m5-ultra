@@ -36,9 +36,14 @@ from the prefix cache, and two such conversations at once both resume (0.27 s).
 | Streaming, concurrency | streamed chunks; two requests at once each right |
 
 Known limits:
-- **The MTP drafter is off.** Through vllm-mlx's multimodal drafter the checkpoint's MTP layer drafts at 69-71%
-  acceptance (code 72-80 tok/s, prose 56-58), but its greedy replies differ from plain ones, so `mtp = false` until
-  that is exact. `tools/patches/experimental-*` holds the two-line change that makes the drafter run at all.
+- **The MTP drafter is off by default** (`mtp = false`). The checkpoint's MTP layer works through mlx-vlm's drafter
+  (patch `0001`, applied by `venv`, gives the model's layer the attribute it keys on) at 71% acceptance: code 75-80
+  tok/s against 64 plain, prose 60-61 against 63. mlx-vlm's drafter is exact against its own batch-invariant forward
+  (the same greedy tokens with no drafts, wrong, right or mixed ones, 120 tokens on two prompts), but that forward
+  and ordinary decode are two bf16 reduction orders of the model that part after 35-59 tokens, and vllm-mlx mixes
+  them: a prompt served cold and the same prompt resumed from the prefix cache then decode differently, so greedy
+  replies with drafts on depend on the cache's history. Plain decode is deterministic. `mtp = true` is for code-heavy
+  use that accepts that; `mtp_draft_tokens` has no measurable effect (the layer drafts its native block).
 - **A conversation with an image re-reads its prompt each turn** (vllm-mlx keeps no prefix cache for multimodal
   requests): a 20k-token turn with an image takes 6 s and so does the next turn. Text-only conversations resume.
 - **An exact repeat of a long prompt is not served from the cache** (vllm-mlx falls back to a full pass when it

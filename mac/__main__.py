@@ -41,6 +41,10 @@ def main(argv: list[str] | None = None) -> int:
                               capture_output=True, text=True, check=True).stdout.strip()
         shutil.copy(config.ROOT / "tools" / "sitecustomize.py", site)
         print(f"+ tools/sitecustomize.py -> {site}")
+        for patch in sorted((config.ROOT / "tools" / "patches").glob("0*.patch")):  # README: what each one is for
+            cmd = ["patch", "-p1", "-N", "-s", "-d", site, "-i", str(patch)]
+            print("+", shlex.join(cmd), flush=True)
+            subprocess.run(cmd, check=False)
     elif a.cmd == "convert":
         if not (s.source_snapshot / "model.safetensors.index.json").exists():
             raise SystemExit(f"{s.source_repo}@{s.source_revision[:8]} is not in the Hugging Face cache: "
