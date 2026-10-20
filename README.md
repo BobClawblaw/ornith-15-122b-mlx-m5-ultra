@@ -1,5 +1,3 @@
-## Re-Running Benchmarks due to a bug: Oct.20.2026 @ 3:07pm CDT
-
 # Ornith-1.5-122B on one M5 Ultra
 
 Serve [ornith-ai/Ornith-1.5-122B](https://huggingface.co/ornith-ai/Ornith-1.5-122B), a Qwen3.5-MoE 122B-A10B with a
