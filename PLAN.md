@@ -129,3 +129,25 @@ Each entry says what was done, how it was measured, and what it found. Newest la
   152.9/159.9/167.7/156.4, four 234.0/240.1/253.3/241.6; drafted run 20261020-141514, one 89.7/314.3/151.1/177.6,
   two 169.9/285.0/246.4/282.2, four 204.5/357.4/361.4/389.7. `zig build test`, test-kernel-contract and test-golden
   pass; the lean check adds nothing.
+- The routing bug (found 2026-10-20 15:00): a first harness quality run on 0d37dcb2 scored GSM8K 60/250 and MGSM
+  41/240, and a GSM8K question reproduced outside the harness ("13 x 2 = 12"), identical alone, from the cache and
+  four at once. Ornith's config omits `norm_topk_prob`; mlx-vlm's config class and TensorFold's CUDA family default it
+  to true (each row's top-8 weights renormalized to sum to one), and the Metal port read it as false. The "HF-style"
+  reference used for every exactness figure above had its routing rewritten in mlx-vlm without the renormalization,
+  so the engine and the reference agreed while both were wrong; the 17*23 explanation above has it backwards (stock
+  mlx-vlm's 391 is right). Every figure above this entry is withdrawn. Fixed in 30e5dcb4 (absent means true).
+- Checks on 30e5dcb4 against stock mlx-vlm: one token at a time, KL 0.0001 and the same top token (a constant 8.00
+  logit offset across the vocabulary); the tensor-unit prompt pass KL 0.01-0.04 on a short prompt, where mlx-vlm's own
+  one-pass and one-token-at-a-time logits differ by KL 1.0-1.5; the questions that failed now come out right (18 eggs,
+  391, 300 seconds). Format, lean (444, as main), test-qwen27, test-kernel-contract and test-golden pass.
+- Quality on 30e5dcb4, thinking off (run 20261020-145307-dsv41-quality-off): GSM8K 245/250, MATH-500 438/500 (L1 42/43,
+  L2 86/90, L3 95/105, L4 112/128, L5 103/134), MGSM 220/240, MMLU 294/342, IFEval 120/150 loose and 116 strict, tools
+  55/60, JSON 30/30, drafts 12/12 (drafted 136 tok/s against 85 undrafted), streaming, multi-turn 8/8, stop, thinking,
+  copy and max-tokens checks all passing. The thinking plan's harness check: 10/10 right, no leaks, none cut at 50,176
+  tokens; its suite part did not run (the suite checkout has no `--reasoning-budget`).
+- Speed on 30e5dcb4: drafted run 20261020-152333, one stream 93.7/157.0/132.9/149.7 tok/s (prose/code/structured/
+  list), two 191.5/274.2/224.2/315.2, four 223.2/319.2/282.6/349.3; plain run 20261020-152513, one 95.7/95.6/95.7/95.6,
+  two 152.7/154.7/154.9/156.5, four 232.9/233.4/234.1/240.9. Through the served LaunchAgent: a 19,235-token prompt
+  8.2 s, its next turn 0.15 s; needles at 96,042 and 245,370 tokens recalled (59 s and 262 s); API checks 11/12 (the
+  streaming check's more-than-5-chunks threshold missed a complete, correct reply sent in 5 drafted chunks); image
+  checks 16/17 (GIF refused by design).

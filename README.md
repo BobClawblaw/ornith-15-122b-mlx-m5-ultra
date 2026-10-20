@@ -14,56 +14,63 @@ The engine is TensorFold's 27B family taught the routed block, from branch `orni
 [BobClawblaw/TensorFold](https://github.com/BobClawblaw/TensorFold) at the commit `local.example.toml` names;
 `python3 -m mac build` builds it. [PLAN.md](PLAN.md) is the work log, with how each number was measured.
 
-> **Correction (2026-10-20):** the numbers below are withdrawn. The engine commit they were measured on had a routing
-> bug: Ornith's config omits `norm_topk_prob`, which means renormalized top-k weights, and the Metal port read it as
-> unset. Replies were measurably wrong (a first quality run scored GSM8K 60/250). The "exactness" figures were measured
-> against an mlx-vlm reference whose routing had been rewritten with the same omission, so they did not show it. The
-> fix is TensorFold commit 30e5dcb4 (branch `ornith-main`); against stock mlx-vlm it matches to KL 0.0001 one token at a
-> time. Quality and speed are being re-measured on it, and this README will be replaced with those results. Until then,
-> do not rely on the tables below or on builds of earlier commits.
+## Measured on this Mac
 
-## Measured on this Mac (withdrawn, see the correction above)
-
-Mac Studio M5 Ultra (256 GB), the 4-bit checkpoint, four streams of 262,144 tokens, a 32 GiB prompt cache, images,
-the drafter (2026-10-20). The engine loads in 10 s and keeps 93 GiB resident (weights, drafter, tower) plus the
-streams' caches as they fill. The recipe harness's ruler (256-token greedy replies, a distinct prompt a phase; target
-`ornith-15-122b-native-m5`), in tok/s summed over the streams:
+Mac Studio M5 Ultra (256 GB), TensorFold `ornith-main` at 30e5dcb4, the 4-bit checkpoint, four streams of 262,144
+tokens, a 32 GiB prompt cache, images, the drafter (2026-10-20). The engine loads in 10 s and keeps 93 GiB resident
+(weights, drafter, tower) plus the streams' caches as they fill. The recipe harness's ruler (256-token greedy replies,
+a distinct prompt a phase; target `ornith-15-122b-native-m5`), in tok/s summed over the streams:
 
 | Streams | prose | code | structured | list | first token |
 |---|---|---|---|---|---|
-| 1, drafts off (run `20261020-141648`) | 95.6 | 95.4 | 95.1 | 95.5 | 0.05-0.07 s |
-| 2, drafts off | 152.9 | 159.9 | 167.7 | 156.4 | 0.07-0.10 s |
-| 4, drafts off | 234.0 | 240.1 | 253.3 | 241.6 | 0.12-0.17 s |
-| 1, drafts on (run `20261020-141514`) | 89.7 | 314.3 | 151.1 | 177.6 | 0.05-0.07 s |
-| 2, drafts on | 169.9 | 285.0 | 246.4 | 282.2 | 0.08-0.11 s |
-| 4, drafts on | 204.5 | 357.4 | 361.4 | 389.7 | 0.13-0.17 s |
+| 1, drafts off (run `20261020-152513`) | 95.7 | 95.6 | 95.7 | 95.6 | 0.05-0.07 s |
+| 2, drafts off | 152.7 | 154.7 | 154.9 | 156.5 | 0.08-0.10 s |
+| 4, drafts off | 232.9 | 233.4 | 234.1 | 240.9 | 0.12-0.17 s |
+| 1, drafts on (run `20261020-152333`) | 93.7 | 157.0 | 132.9 | 149.7 | 0.05-0.07 s |
+| 2, drafts on | 191.5 | 274.2 | 224.2 | 315.2 | 0.08-0.11 s |
+| 4, drafts on | 223.2 | 319.2 | 282.6 | 349.3 | 0.13-0.18 s |
 
-DFlash2 drafts one stream (the others decode plainly); a drafted greedy reply is identical to the undrafted one. The
-drafter lands 4.3 tokens a round on prose and 9.7 on code (a 300-word story 115 tok/s, a CSV parser 274, a list 201,
-a JSON array 248; PLAN.md). On this routed model a 16-row verify window reads most experts' weights, so a round costs
-about three plain steps: prose about breaks even at one stream, code runs 3.3x plain. A decode step is 10 ms of GPU
-time: the shared expert runs as a ninth slot of the experts' kernel beside the eight routed ones.
+DFlash2 drafts one stream (the others decode plainly); a drafted greedy reply is identical to the undrafted one. On
+this routed model a 16-row verify window reads most experts' weights, so a drafted round costs about three plain
+steps: drafts pay on code, lists and structured output and about break even on prose at one stream. A plain decode
+step is 10 ms of GPU time (the shared expert runs as a ninth slot of the experts' kernel).
 
-Prompts: 2,576 tok/s at the engine's 1,024-row chunks (8,192 tokens in 3.2 s; `tf-qwen27-run`, PLAN.md); through the server a
-19,235-token turn took 10.9 s, its next turn 0.10 s from the cache, an exact repeat 0.5 s.
+Prompts: a 19,235-token turn takes 8.2 s through the server (2,350 tok/s), its next turn 0.15 s from the cache; a
+96,042-token prompt 59 s, a 245,370-token one 262 s.
+
+Quality, thinking off (the recipe harness's suite, run `20261020-145307-dsv41-quality-off`, greedy):
+
+| GSM8K | MATH-500 | MGSM | MMLU | IFEval (loose / strict) | tools | JSON |
+|---|---|---|---|---|---|---|
+| 245/250 (98.0%) | 438/500 (87.6%) | 220/240 (91.7%) | 294/342 (86.0%) | 120/150 / 116/150 | 55/60 | 30/30 |
+
+The suite's serving checks pass too: drafted replies identical to undrafted (12/12), streaming identical, multi-turn
+recall 8/8, stop strings, thinking (`reasoning_content`, no leaked tags), max-tokens. With thinking on, the harness's
+reasoning check gets 10/10 right with no leaks; the thinking suite has not been run yet.
 
 | Feature | Check through the chat API |
 |---|---|
 | Text | greedy replies deterministic; thinking off by default, on with `chat_template_kwargs: {"enable_thinking": true}` (`reasoning_content`) |
 | Tools, structured output | a `get_weather` call with its argument; `tool_choice: required`; a `json_schema` reply parses (libtfgrammar) |
 | Images | PNG, JPEG, WebP (with alpha) by colour; text in an image read exactly; three circles counted; four images in order; a 3000x2000 JPEG at 4,080 tokens; GIF refused with a clear error |
-| Prompt cache | a 19k-token conversation's later turns resume in 0.10 s; a conversation with an image resumes too |
-| Long context | a code hidden at the start of 90k- and 230k-token prompts is recalled (PLAN.md) |
-| Drafts | drafted and undrafted greedy replies identical on prose, code, a list and a story |
-| Streaming, concurrency | streamed chunks; four requests at once each right |
+| Prompt cache | a 19k-token conversation's later turns resume in 0.15 s; a conversation with an image resumes too |
+| Long context | a code hidden at the start of 96k- and 245k-token prompts is recalled |
+| Drafts | drafted and undrafted greedy replies identical |
+| Streaming, concurrency | streamed replies complete; four requests at once each right |
 
-Exactness of the port: against mlx-vlm 0.7.9 on the same checkpoint with HF-style routing, the prompt pass's logits
-agree to KL 0.0023 at all 48 layers (the same top token at every depth) and teacher-forced decode to KL 0.0006-0.0014
-with 98-100% top-1 agreement. mlx-vlm rounds its router probabilities to bf16 before top-k, which ties experts and
-changes some answers (17*23 among them); the engine routes as the reference implementation does, in fp32.
+Exactness of the port: against stock mlx-vlm 0.7.9 on the same checkpoint, fed one token at a time, the engine's
+logits agree to KL 0.0001 with the same top token (and a constant offset across the vocabulary, which softmax and
+sampling ignore); its tensor-unit prompt pass is within KL 0.01-0.04 on a short prompt, where mlx-vlm's own one-pass
+and one-token-at-a-time logits differ by KL 1.0-1.5.
+
+**A correction (2026-10-20):** the first version of this recipe published numbers from an engine commit with a
+routing bug. Ornith's config omits `norm_topk_prob`, which means renormalized top-k weights, and the port read it as
+unset; a first quality run scored GSM8K 60/250. That version's exactness figures had been measured against an
+mlx-vlm reference whose routing was rewritten with the same omission. The bug is fixed in 30e5dcb4; every number
+above is measured on it. PLAN.md has the details.
 
 Known limits:
-- **Quality:** the harness quality suite has not been run on this server.
+- **Thinking-mode quality** has not been measured with the suite yet.
 - **Drafts never propose rare tokens:** the drafter's head keeps the 27B's vocabulary spans (ids 0-98,303 and
   248,032-248,319), so CJK, Cyrillic and other rare tokens are only verified, never drafted; replies stay exact.
 - **One stream drafts** at a time; the others decode without drafts.
