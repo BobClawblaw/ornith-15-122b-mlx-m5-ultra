@@ -64,3 +64,48 @@ Each entry says what was done, how it was measured, and what it found. Newest la
   (the same pattern at every block size), because prefill and resumed states come from the ordinary forward and the
   verify from the invariant one. Kept off by default; patch 0001 is applied by `venv` so `mtp = true` works.
 
+- Native port (2026-10-20, afternoon): the vllm-mlx server was a stopgap; the recipe now serves TensorFold's native
+  Metal engine. The 27B family (`zig/src/families/qwen27`) learned `qwen3_5_moe`: the config reads the experts (the
+  shared expert's width is the layer's `intermediate`, `norm_topk_prob` false for Ornith), `widths.zig` admits the
+  router, shared gate and stacked experts' widths, the loader borrows the stacked `switch_mlp` tensors where the
+  shards pack them and copies router + shared gate into one 264-row matrix, a routed block (`moe_gpu.zig`,
+  `kernels/metal/qwen27/moe.metal`) routes by fp32 softmax over bf16 logits with ties to the lower id (HF's semantics),
+  runs decode rows through the row kernels by expert id and prompt chunks sorted by expert on the tensor units
+  (core.affine_mm), and combines with the reference's bf16 roundings; the attention kernels take the KV group as a
+  compile-time define (24 over 4 for the 27B, 32 over 2 here); the DFlash2 runtime takes eight taps and a block of 16.
+- Checks of the port, prompt pass (`tf-qwen27-run`, `TF_LAYERS=N` truncates the stack, `TF_LOGITS_DUMP` writes logits)
+  against mlx-vlm 0.7.9 on the same 4-bit checkpoint with its routing done HF's way (fp32 softmax and top-k; mlx-vlm
+  itself rounds the probabilities to bf16 before top-k, which ties experts and changes answers: 17*23 is 391 under
+  mlx-vlm's ties and 47 under HF's routing on this 4-bit checkpoint, the native engine agreeing with HF): KL 0.0000 at
+  1 layer, 0.0001 at 4, 0.0002 at 16, 0.0006 at 32, 0.0023 at 48 (sky prompt), 0.0035 (arithmetic prompt), the same
+  top token at every depth. Decode (one-token steps, teacher-forced 64 and 96 tokens): KL mean 0.0014 and 0.0006,
+  top-1 agreement 98.4% and 100%. mlx-vlm's own logits move by KL 1.0-1.5 at 48 layers between its accumulation
+  orders (one pass, two chunks, a token a step), so the checkpoint itself is that sensitive at high-entropy spots.
+- Served (`tensorfold-native serve`, 4 streams, 32 GiB prompt cache, drafter, images): greedy deterministic;
+  streaming; tools; json_schema and required tools (libtfgrammar beside the binary); a 19,235-token prompt in 10.9 s
+  then its next turn in 0.10 s from the cache (19,274 cached) and an exact repeat in 0.5 s; four requests at once;
+  images 16/17 (PNG, JPEG, WebP, alpha, text read, counting, four in order, a 3000x2000 JPEG at 4,080 tokens, a
+  second turn after an image from the cache, thinking on, streaming, two at once, an image after 20k tokens; GIF
+  refused by design). DFlash2 (incoai/Ornith-1.5-122B-DFlash2, `--drafter-bits 4`): drafted greedy replies identical
+  to undrafted on prose, code, a list and a story (400 tokens each); 2.8-4.4 tokens a round.
+- Speed (harness target `ornith-15-122b-native-m5`, plan mlx-speed): undrafted run 20261020-124945, one stream
+  85.0/85.1/85.3/85.1 tok/s (prose/code/structured/list), two 143.4/144.7/143.3/142.5, four 219.4/221.4/237.1/225.0;
+  drafted run 20261020-125604, one 40.4/79.3/71.4/71.8 (the first phase after the load; the manual checks right
+  after gave prose 101.6, code 112.7, list 157.0), two 152.1/281.8/164.6/250.7, four 197.3/408.0/322.4/331.1.
+  Prompt (`tf-qwen27-run --max-tokens 0`, 8,192 tokens): 1,773 tok/s with 512-row chunks before the router moved to
+  the tensor units, then 2,230 / 2,576 / 2,762 tok/s at 512 / 1,024 / 2,048 rows; the family's default for routed
+  checkpoints is 1,024 (a chunk reads every expert's weights once). A decode step is 12.2 ms of GPU time: dense
+  projections 5.7, experts 3.0, route 1.0, norms 0.6, attention 0.5, DeltaNet 1.0.
+- Recipe: `mac/` builds the pinned engine (`python3 -m mac build`: a worktree at tensorfold_sha, libtfgrammar from
+  xgrammar v0.2.8, libjpeg-turbo 3.1.4.1), serves it (`up`, launchd), converts with mlx-vlm (`venv`, `convert`,
+  without the MTP layer: the drafter is DFlash2); the vllm-mlx shim and patch are gone. The 4-bit checkpoint is public
+  at BobClawblaw/Ornith-1.5-122B-MLX-4bit.
+- Final measurements on the pinned engine (32dad79b; the drafting policy now lets plain rounds compete for routed
+  models, and the router matrix is padded to 64-row tiles): drafted run 20261020-133658, one stream
+  42.6/84.1/70.5/71.4 tok/s (prose/code/structured/list), two 155.1/252.2/165.3/246.5, four 194.5/363.7/329.6/322.7;
+  plain run 20261020-133912, one 85.0/84.8/84.6/84.9, two 139.2/143.6/146.2/141.7, four 218.7/223.6/238.1/227.3.
+  Why drafted prose loses at one stream: a 16-row window on this MoE reads most experts' weights (about 100 of 256),
+  so the host times it at 28.7 ms against 12.5 ms for one row, a drafted round takes 34-38 ms, and the ruler's prose
+  prompt lands 1.3-1.8 drafts a round (its code prompt 5.7). Other prose prompts did better (66 tok/s, 2.3 a round).
+  `zig build test`, test-golden, fuzz-cortheon, test-kernel-contract and the lean check (zero new findings) pass on
+  that commit; the full-depth logits check is unchanged (KL 0.0017 and 0.0035).

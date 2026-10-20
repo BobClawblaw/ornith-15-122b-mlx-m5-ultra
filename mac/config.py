@@ -6,6 +6,7 @@ from dataclasses import dataclass, fields
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
+JPEG_VERSION = "3.1.4.1"  # the libjpeg-turbo release the engine's JPEG decoder pins (Pillow's, bit for bit)
 
 
 @dataclass
@@ -16,18 +17,33 @@ class Settings:
     model_dir: str = ""
     bits: int = 4
     group_size: int = 64
+    drafter_repo: str = ""
+    drafter_revision: str = ""
+    drafter_dir: str = ""
+    drafter_bits: int = 4
+    tensorfold_src: str = ""
+    tensorfold_sha: str = ""
+    zig: str = "zig"
+    zig_cpu: str = "native"
+    binary: str = ""
     python: str = ".venv/bin/python"
     host: str = "127.0.0.1"
     port: int = 8891
-    cache: str = "~/.cache/ornith-15-122b"
-    max_num_seqs: int = 4
+    tf_cache: str = "~/.cache/ornith-15-122b"
+    context: int = 262144
+    parallel: int = 4
+    drafts: bool = True
+    thinking: bool = False
     max_tokens: int = 32768
-    max_request_tokens: int = 262144
-    prefix_cache: bool = True
-    mtp: bool = False
-    mtp_draft_tokens: int = 3
-    kv_cache_bits: int = 0
-    reasoning_parser: str = "qwen3"
+    temperature: str = ""
+    prompt_cache_gib: float = 32
+    prompt_cache_over_cap: bool = False
+    vision: bool = True
+    vision_image_tokens: int = 4096
+    vision_max_images: int = 4
+    vision_urls: bool = False
+    keep_warm: int = 86400
+    api_key: str = ""
     extra_args: str = ""
     memory_margin_gib: float = 8
 
@@ -35,13 +51,22 @@ class Settings:
     def path(p: str) -> Path:
         return Path(os.path.expanduser(p))
 
+    @staticmethod
+    def snapshot(repo: str, revision: str) -> Path:
+        return Settings.path(f"~/.cache/huggingface/hub/models--{repo.replace('/', '--')}/snapshots/{revision}")
+
     @property
     def model(self) -> Path:
         return self.path(self.model_dir)
 
     @property
-    def cache_dir(self) -> Path:
-        return self.path(self.cache)
+    def drafter(self) -> Path:
+        """The DFlash2 drafter: a directory of its own, or the pinned release in the Hugging Face cache."""
+        return self.path(self.drafter_dir) if self.drafter_dir else self.snapshot(self.drafter_repo, self.drafter_revision)
+
+    @property
+    def source_snapshot(self) -> Path:
+        return self.snapshot(self.source_repo, self.source_revision)
 
     @property
     def interpreter(self) -> Path:
@@ -49,25 +74,37 @@ class Settings:
         return p if p.is_absolute() else ROOT / p
 
     @property
-    def vllm(self) -> Path:
-        return self.interpreter.parent / "vllm-mlx"
+    def cache(self) -> Path:
+        return self.path(self.tf_cache)
 
     @property
-    def drafter(self) -> Path:
-        """The MTP layer `convert --mtp` extracts beside the checkpoint (vllm-mlx's multimodal drafter)."""
-        return self.model.parent / (self.model.name + "-mtp")
+    def worktree(self) -> Path:
+        return self.cache / "engine" / self.tensorfold_sha[:12]
 
     @property
-    def source_snapshot(self) -> Path:
-        return self.path(f"~/.cache/huggingface/hub/models--{self.source_repo.replace('/', '--')}/snapshots/{self.source_revision}")
+    def built_binary(self) -> Path:
+        return self.worktree / "zig-out" / "native" / "bin" / "tensorfold-native"
+
+    @property
+    def built_grammar(self) -> Path:
+        """libtfgrammar (xgrammar), which the server loads beside its binary (../lib) at the first structured request."""
+        return self.worktree / "zig-out" / "native" / "lib" / "libtfgrammar.dylib"
+
+    @property
+    def run_binary(self) -> Path:
+        return self.path(self.binary) if self.binary else self.built_binary
+
+    @property
+    def jpeg_lib(self) -> Path:
+        return self.cache / f"libjpeg-turbo-{JPEG_VERSION}" / "lib" / "libturbojpeg.0.dylib"
 
     @property
     def pid_file(self) -> Path:
-        return self.cache_dir / "server.pid"
+        return self.cache / "server.pid"
 
     @property
     def log_file(self) -> Path:
-        return self.cache_dir / "server.log"
+        return self.cache / "server.log"
 
     @property
     def url(self) -> str:
@@ -75,26 +112,40 @@ class Settings:
         return f"http://{host}:{self.port}/v1"
 
     def serve_args(self) -> list[str]:
-        a = [str(self.vllm), "serve", str(self.model), "--served-model-name", self.served_name, "--mllm",
-             "--host", self.host, "--port", str(self.port), "--continuous-batching", "--max-num-seqs", str(self.max_num_seqs),
-             "--max-tokens", str(self.max_tokens), "--max-request-tokens", str(self.max_request_tokens),
-             "--enable-auto-tool-choice", "--tool-call-parser", "qwen3.5"]
-        a.append("--enable-prefix-cache" if self.prefix_cache else "--disable-prefix-cache")
-        if self.mtp:
-            a += ["--mllm-draft-model", str(self.drafter), "--mllm-draft-kind", "mtp", "--mllm-draft-block-size",
-                  str(self.mtp_draft_tokens), "--default-mllm-draft"]
-        if self.kv_cache_bits in (4, 8):
-            a += ["--kv-cache-quantization", "--kv-cache-quantization-bits", str(self.kv_cache_bits)]
-        if self.reasoning_parser:
-            a += ["--reasoning-parser", self.reasoning_parser]
+        a = [str(self.run_binary), "serve", "--host", self.host, "--port", str(self.port), "--name", self.served_name,
+             "--context", str(self.context), "--max-tokens", str(self.max_tokens), "--parallel", str(self.parallel),
+             "--keep-warm", str(self.keep_warm), "--no-update-check"]
+        if self.temperature:
+            a += ["--temperature", self.temperature]
+        a.append("--thinking" if self.thinking else "--no-thinking")
+        if self.drafts:
+            a += ["--drafter", str(self.drafter), "--drafter-bits", str(self.drafter_bits)]
+        else:
+            a.append("--no-drafts")
+        if self.prompt_cache_gib >= 0:
+            a += ["--prompt-cache-gib", f"{self.prompt_cache_gib:g}"]
+            if self.prompt_cache_over_cap and self.prompt_cache_gib > 0:
+                a.append("--prompt-cache-over-cap")
+        if self.vision:
+            a += ["--vision", "--vision-image-tokens", str(self.vision_image_tokens),
+                  "--vision-max-images", str(self.vision_max_images)]
+            if self.vision_urls:
+                a.append("--vision-urls")
+        if self.api_key:
+            a += ["--api-key", self.api_key]
         a += self.extra_args.split()
+        a.append(str(self.model))
         return a
+
+    def server_env(self) -> dict[str, str]:
+        env = dict(os.environ)
+        env["TENSORFOLD_LIBTURBOJPEG"] = str(self.jpeg_lib)
+        return env
 
     def convert_args(self, bits: int) -> tuple[list[str], Path]:
         out = self.path(f"~/models/Ornith-1.5-122B-MLX-{bits}bit")
         return [str(self.interpreter), "-m", "mlx_vlm.convert", "--hf-path", str(self.source_snapshot), "--mlx-path", str(out),
-                "-q", "--q-bits", str(bits), "--q-group-size", str(self.group_size), "--q-mode", "affine", "--dtype", "bfloat16",
-                "--mtp"], out
+                "-q", "--q-bits", str(bits), "--q-group-size", str(self.group_size), "--q-mode", "affine", "--dtype", "bfloat16"], out
 
 
 def _coerce(kind: type, raw):
@@ -111,22 +162,32 @@ def load(local_file: Path | None = None, env: dict[str, str] | None = None) -> S
             for section in tomllib.loads(f.read_text()).values():
                 merged.update(section)
     s = Settings()
-    for f in fields(Settings):
-        if f.name in merged:
-            setattr(s, f.name, _coerce(f.type if isinstance(f.type, type) else type(getattr(s, f.name)), merged[f.name]))
-        if f.name.upper() in env:
-            setattr(s, f.name, _coerce(type(getattr(s, f.name)), env[f.name.upper()]))
+    for fld in fields(Settings):
+        kind = type(getattr(s, fld.name))
+        if fld.name in merged:
+            setattr(s, fld.name, _coerce(kind, merged[fld.name]))
+        if fld.name.upper() in env:
+            setattr(s, fld.name, _coerce(kind, env[fld.name.upper()]))
     return s
 
 
 def validate(s: Settings) -> list[str]:
-    problems = []
-    if not s.interpreter.exists():
-        problems.append(f"no interpreter at {s.interpreter}: python3 -m mac venv")
+    """The settings' problems, worded for the user (empty: none)."""
+    out = []
+    if not s.binary and not s.tensorfold_sha:
+        out.append("no engine: set tensorfold_sha (local.toml) or binary")
     if not (s.model / "config.json").exists():
-        problems.append(f"no converted checkpoint at {s.model}: python3 -m mac convert")
-    if s.mtp and not (s.drafter / "config.json").exists():
-        problems.append(f"mtp = true but there is no drafter at {s.drafter} (convert writes it; or set mtp = false)")
-    if not s.vllm.exists():
-        problems.append(f"no vllm-mlx at {s.vllm}: python3 -m mac venv")
-    return problems
+        out.append(f"no converted checkpoint at {s.model}: python3 -m mac convert")
+    if s.drafts and not (s.drafter / "config.json").exists():
+        out.append(f"drafts = true but there is no drafter at {s.drafter}: hf download {s.drafter_repo} --revision {s.drafter_revision}")
+    if s.drafter_bits not in (0, 4):
+        out.append("drafter_bits must be 4 (prepared 4-bit copies) or 0 (bf16)")
+    if s.parallel < 1 or s.parallel > 4:
+        out.append("parallel must be 1 to 4")
+    if s.context < 1 or s.context > 262144:
+        out.append("context must be 1 to 262144 (the checkpoint's window)")
+    if not s.run_binary.exists():
+        out.append(f"no engine binary at {s.run_binary}: python3 -m mac build")
+    if s.vision and not s.jpeg_lib.exists():
+        out.append(f"vision = true but there is no libjpeg-turbo at {s.jpeg_lib}: python3 -m mac build")
+    return out

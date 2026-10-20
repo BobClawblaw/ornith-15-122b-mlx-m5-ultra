@@ -3,6 +3,12 @@
 model_dir = "~/models/Ornith-1.5-122B-MLX-4bit"   # or ~/models/Ornith-1.5-122B-MLX-8bit
 bits = 4
 
+[engine]
+tensorfold_src = "~/github/TensorFold"            # a clone of github.com/BobClawblaw/TensorFold holding tensorfold_sha
+tensorfold_sha = "32dad79b171d270167db62bdbc1d6ce62a9fe6bc"                      # branch ornith-main (README.md)
+zig = "~/tools/zig-aarch64-macos-0.17.0/zig"
+
 [local]
 host = "127.0.0.1"
 port = 8891
+tf_cache = "~/.cache/ornith-15-122b"

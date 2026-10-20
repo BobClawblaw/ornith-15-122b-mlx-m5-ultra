@@ -1,5 +1,5 @@
-# The serving stack, as measured (README): `python3 -m mac venv` installs it with uv into .venv
-vllm-mlx==0.6.0
+# The conversion stack (`python3 -m mac convert`): `python3 -m mac venv` installs it with uv into .venv. The server is
+# TensorFold's native engine (`python3 -m mac build`), which needs none of this.
 mlx-vlm==0.7.9
 mlx-lm==0.31.3
 mlx==0.32.4

@@ -15,7 +15,7 @@ def plist(s: Settings, port: int) -> str:
     python = shutil.which("python3") or "/usr/bin/python3"
     env = {"PORT": str(port), "HOST": "0.0.0.0", "PATH": "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"}
     env_xml = "".join(f"<key>{k}</key><string>{escape(v)}</string>" for k, v in env.items())
-    log = escape(str(s.cache_dir / "launchd.log"))
+    log = escape(str(s.cache / "launchd.log"))
     return f"""<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">

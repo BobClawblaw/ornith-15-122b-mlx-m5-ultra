@@ -11,8 +11,8 @@ from .config import Settings
 
 
 def weights_gib(s: Settings) -> float:
-    """The checkpoint's resident share once loaded: its safetensors shards and the drafter's."""
-    dirs = [s.model] + ([s.drafter] if s.mtp else [])
+    """The checkpoint's resident share once loaded: its safetensors shards and, with drafts, the drafter's."""
+    dirs = [s.model] + ([s.drafter] if s.drafts else [])
     return sum(f.stat().st_size for d in dirs for f in d.glob("*.safetensors")) / 2**30
 
 
@@ -44,7 +44,7 @@ def free_gib() -> float:
 
 
 def memory_check(s: Settings) -> None:
-    need = weights_gib(s) + s.memory_margin_gib
+    need = weights_gib(s) + s.memory_margin_gib + max(s.prompt_cache_gib, 0)
     have = free_gib()
     if have < need:
         raise SystemExit(f"{have:.0f} GiB free, the server needs {need:.0f}: stop other models first")
@@ -69,10 +69,10 @@ def up(s: Settings, foreground: bool = False) -> None:
     memory_check(s)
     args = s.serve_args()
     if foreground:  # the launchd unit: this process becomes the server
-        os.execv(args[0], args)
-    s.cache_dir.mkdir(parents=True, exist_ok=True)
+        os.execve(args[0], args, s.server_env())
+    s.cache.mkdir(parents=True, exist_ok=True)
     log = open(s.log_file, "ab")
-    p = subprocess.Popen(args, stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
+    p = subprocess.Popen(args, stdout=log, stderr=subprocess.STDOUT, env=s.server_env(), start_new_session=True)
     s.pid_file.write_text(str(p.pid))
     wait_ready(s, p.pid)
     print(f"serving {s.served_name} at {s.url} (pid {p.pid})")
@@ -99,7 +99,7 @@ def down(s: Settings, grace: float = 30) -> None:
 
 def status(s: Settings) -> str:
     h = health(s)
-    return f"pid: {pid(s) or 'not running'}\nurl: {s.url}\nhealth: {json.dumps(h)[:300] if h else 'down'}"
+    return f"pid: {pid(s) or 'not running'}\nurl: {s.url}\nhealth: {json.dumps(h) if h else 'down'}"
 
 
 def chat(s: Settings, prompt: str, max_tokens: int = 128) -> str:

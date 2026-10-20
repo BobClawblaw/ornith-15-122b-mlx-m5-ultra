@@ -2,7 +2,7 @@
 # environment variable of the same name in upper case overrides both (PORT=8891 python3 -m mac up).
 
 [model]
-# Ornith's release (bf16, 250 GB), converted by `python3 -m mac convert` (mlx-vlm, affine groups of 64, the MTP layer kept)
+# Ornith's release (bf16, 250 GB), converted by `python3 -m mac convert` (mlx-vlm, affine groups of 64)
 source_repo = "ornith-ai/Ornith-1.5-122B"
 source_revision = "346ec829dd63e107aad8771d74e885e901cec95d"
 served_name = "Ornith-1.5-122B"
@@ -10,23 +10,42 @@ model_dir = "~/models/Ornith-1.5-122B-MLX-4bit"   # or the 8-bit one; `convert` 
 bits = 4
 group_size = 64
 
+[drafter]
+# the DFlash2 drafter (bf16, 1.9 GB): `hf download incoai/Ornith-1.5-122B-DFlash2 --revision <drafter_revision>`
+drafter_repo = "incoai/Ornith-1.5-122B-DFlash2"
+drafter_revision = "a5ed7396f5f9e5b1abf7ff50b7899a3186961432"
+drafter_dir = ""                 # empty: the pinned release in the Hugging Face cache
+drafter_bits = 4                 # prepared 4-bit copies of the drafter's projections (0: bf16)
+
 [engine]
-# vllm-mlx on mlx-vlm and mlx-lm (requirements.txt pins them); the venv `python3 -m mac venv` makes next to this file
-python = ".venv/bin/python"
+# TensorFold's native Metal engine: a worktree of tensorfold_src at tensorfold_sha, built by `python3 -m mac build`
+# under tf_cache (local.toml pins the commit and names the checkout); `binary` names a built tensorfold-native instead
+tensorfold_src = "~/github/TensorFold"
+tensorfold_sha = ""
+zig = "zig"                      # Zig 0.17.0
+zig_cpu = "native"
+binary = ""
+python = ".venv/bin/python"      # the conversion stack (requirements.txt), made by `python3 -m mac venv`
 
 [local]
 host = "127.0.0.1"
 port = 8891
-cache = "~/.cache/ornith-15-122b"
+tf_cache = "~/.cache/ornith-15-122b"
 
 [serve]
-max_num_seqs = 4                 # requests decoded together (continuous batching)
+context = 262144                 # a stream's window (the checkpoint's)
+parallel = 4                     # streams decoded together (1 to 4)
+drafts = true                    # DFlash2 drafts for one stream (greedy replies are identical with them off)
+thinking = false                 # the template's thinking block off by default; a request's chat_template_kwargs turns it on
 max_tokens = 32768               # a reply's default ceiling
-max_request_tokens = 262144      # the checkpoint's window
-prefix_cache = true              # kept prompt states between turns
-mtp = false                      # the MTP layer through vllm-mlx's multimodal drafter: faster on code, but its greedy replies
-mtp_draft_tokens = 3             # differ from plain ones (PLAN.md), so off until that is exact
-kv_cache_bits = 0                # 0: bf16 KV; 8 or 4 quantizes the KV cache
-reasoning_parser = "qwen3"       # reasoning_content from the template's thinking blocks
+temperature = ""                 # empty: the server's default sampling (0.6, top_k 20, top_p 0.95)
+prompt_cache_gib = 32            # kept prompt states between turns
+prompt_cache_over_cap = false
+vision = true
+vision_image_tokens = 4096       # an image's tokens at most (its longer side is scaled to fit)
+vision_max_images = 4
+vision_urls = false              # image URLs fetched by the server (data URLs always work)
+keep_warm = 86400
+api_key = ""
 extra_args = ""
 memory_margin_gib = 8
