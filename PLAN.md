@@ -158,3 +158,10 @@ Each entry says what was done, how it was measured, and what it found. Newest la
   20261020-161950-thinking). An earlier attempt ran the glm53 recipe's suite, which lacks the budget, at its default
   caps (1,024 tokens for GSM8K, 4,096 for MATH-500); it was stopped and is not counted. `zig build test` (with the
   Metal checks) and fuzz-cortheon pass on 30e5dcb4.
+- Streams at 262k (2026-10-20 16:34-16:46, engine 30e5dcb4, the harness's glm-streams plan, `PARALLEL=16
+  PROMPT_CACHE_GIB=4`): admitted with 77.3 GiB loaded and 93.2 GiB for the 16 streams (5.9 GiB each; an 8 GiB cache was
+  refused at 179.2 GiB, an earlier 5.0 GiB-a-stream estimate from the 4-stream figure was wrong). Drafted run
+  20261020-163412: 1/4/8/16 streams prose 93.8/239.4/231.8/355.6, code 157.1/326.0/357.8/410.5, structured
+  132.6/282.6/302.7/373.1, list 149.5/391.0/385.1/422.1 tok/s; plain run 20261020-163959: prose 95.3/227.1/315.0/404.5,
+  code 95.5/232.7/322.5/415.0, structured 95.4/233.5/327.2/414.9, list 95.5/240.2/338.6/437.5; first token 0.42-0.59 s
+  at 16. The suite's concurrent check (16 streams together against alone) 12/12 in both. The recipe's cap is 16.

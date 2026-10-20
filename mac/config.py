@@ -185,8 +185,8 @@ def validate(s: Settings) -> list[str]:
         out.append(f"drafts = true but there is no drafter at {s.drafter}: hf download {s.drafter_repo} --revision {s.drafter_revision}")
     if s.drafter_bits not in (0, 4):
         out.append("drafter_bits must be 4 (prepared 4-bit copies) or 0 (bf16)")
-    if s.parallel < 1 or s.parallel > 4:
-        out.append("parallel must be 1 to 4")
+    if s.parallel < 1 or s.parallel > 16:
+        out.append("parallel must be 1 to 16 (measured up to 16; at 262k each stream takes 5.9 GiB, see README)")
     if s.context < 1 or s.context > 262144:
         out.append("context must be 1 to 262144 (the checkpoint's window)")
     if not s.run_binary.exists():

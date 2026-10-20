@@ -34,7 +34,7 @@ tf_cache = "~/.cache/ornith-15-122b"
 
 [serve]
 context = 262144                 # a stream's window (the checkpoint's)
-parallel = 4                     # streams decoded together (1 to 4)
+parallel = 4                     # streams decoded together (1 to 16; 16 at 262k needs prompt_cache_gib 4, README)
 drafts = true                    # DFlash2 drafts for one stream (greedy replies are identical with them off)
 thinking = false                 # the template's thinking block off by default; a request's chat_template_kwargs turns it on
 max_tokens = 50176               # a reply's default ceiling: a 48k reasoning budget plus the answer

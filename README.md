@@ -33,6 +33,22 @@ this routed model a 16-row verify window reads most experts' weights, so a draft
 steps: drafts pay on code, lists and structured output and about break even on prose at one stream. A plain decode
 step is 10 ms of GPU time (the shared expert runs as a ninth slot of the experts' kernel).
 
+More streams (harness stream plan, 262,144-token streams and a 4 GiB prompt cache; drafted run `20261020-163412`,
+plain run `20261020-163959`), tok/s summed over the streams:
+
+| Streams | plain: prose / code / structured / list | drafted: prose / code / structured / list | first token |
+|---|---|---|---|
+| 1 | 95.3 / 95.5 / 95.4 / 95.5 | 93.8 / 157.1 / 132.6 / 149.5 | 0.05-0.07 s |
+| 4 | 227.1 / 232.7 / 233.5 / 240.2 | 239.4 / 326.0 / 282.6 / 391.0 | 0.13-0.18 s |
+| 8 | 315.0 / 322.5 / 327.2 / 338.6 | 231.8 / 357.8 / 302.7 / 385.1 | 0.22-0.31 s |
+| 16 | 404.5 / 415.0 / 414.9 / 437.5 | 355.6 / 410.5 / 373.1 / 422.1 | 0.42-0.59 s |
+
+Sixteen streams together give each stream the reply it gets alone (the suite's concurrent check, 12/12). Past four
+streams drafting stops paying: the drafted stream's 16-row windows make every shared round heavier, so for many users
+serve plain (`drafts = false`). Each 262,144-token stream takes 5.9 GiB, and the engine keeps the weights (77 GiB),
+the streams and the prompt cache inside 70% of the Mac's memory: 11 streams fit beside the default 32 GiB prompt
+cache, 15 beside 8 GiB, 16 beside 4 GiB (`PARALLEL=16 PROMPT_CACHE_GIB=4 DRAFTS=false python3 -m mac up`).
+
 Prompts: a 19,235-token turn takes 8.2 s through the server (2,350 tok/s), its next turn 0.15 s from the cache; a
 96,042-token prompt 59 s, a 245,370-token one 262 s.
 
@@ -104,7 +120,7 @@ either (`PORT=8891 python3 -m mac up`).
 | `model_dir`, `bits` | the 4-bit checkpoint | which conversion to serve (`convert --bits 8` writes the 8-bit one) |
 | `tensorfold_src`, `tensorfold_sha`, `zig` | local.toml | the TensorFold checkout, the pinned commit, Zig 0.17.0 |
 | `context` | 262144 | a stream's window |
-| `parallel` | 4 | streams decoded together |
+| `parallel` | 4 | streams decoded together (1 to 16; more streams need a smaller `prompt_cache_gib`, above) |
 | `drafts`, `drafter_bits` | true, 4 | DFlash2 drafts for one stream, the drafter's projections in 4-bit |
 | `thinking` | false | the template's thinking block by default |
 | `max_tokens`, `thinking_budget` | 50176, 49152 | a reply's ceiling, and the reasoning a thinking reply may take before its answer |
