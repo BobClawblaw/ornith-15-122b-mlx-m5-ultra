@@ -43,8 +43,12 @@ Quality, thinking off (the recipe harness's suite, run `20261020-145307-dsv41-qu
 | 245/250 (98.0%) | 438/500 (87.6%) | 220/240 (91.7%) | 294/342 (86.0%) | 120/150 / 116/150 | 55/60 | 30/30 |
 
 The suite's serving checks pass too: drafted replies identical to undrafted (12/12), streaming identical, multi-turn
-recall 8/8, stop strings, thinking (`reasoning_content`, no leaked tags), max-tokens. With thinking on, the harness's
-reasoning check gets 10/10 right with no leaks; the thinking suite has not been run yet.
+recall 8/8, stop strings, thinking (`reasoning_content`, no leaked tags), max-tokens.
+
+Quality, thinking on (the harness's `thinking` plan, run `20261020-161950-thinking`: a 48k reasoning budget, 49,152
+tokens of reasoning then 1,024 for the answer): GSM8K 244/250 (97.6%), none of the 250 replies cut at the 50,176-token
+cap; the harness's reasoning check 10/10 right with no leaked tags. MATH-500 and GPQA with thinking on are not
+measured.
 
 | Feature | Check through the chat API |
 |---|---|
@@ -68,7 +72,7 @@ mlx-vlm reference whose routing was rewritten with the same omission. The bug is
 above is measured on it. PLAN.md has the details.
 
 Known limits:
-- **Thinking-mode quality** has not been measured with the suite yet.
+- **Thinking-mode quality** is measured on GSM8K only.
 - **Drafts never propose rare tokens:** the drafter's head keeps the 27B's vocabulary spans (ids 0-98,303 and
   248,032-248,319), so CJK, Cyrillic and other rare tokens are only verified, never drafted; replies stay exact.
 - **One stream drafts** at a time; the others decode without drafts.
@@ -103,6 +107,7 @@ either (`PORT=8891 python3 -m mac up`).
 | `parallel` | 4 | streams decoded together |
 | `drafts`, `drafter_bits` | true, 4 | DFlash2 drafts for one stream, the drafter's projections in 4-bit |
 | `thinking` | false | the template's thinking block by default |
+| `max_tokens`, `thinking_budget` | 50176, 49152 | a reply's ceiling, and the reasoning a thinking reply may take before its answer |
 | `prompt_cache_gib` | 32 | kept prompt states between turns |
 | `vision`, `vision_image_tokens`, `vision_max_images` | true, 4096, 4 | the image tower, an image's tokens at most, images a request |
 | `temperature` | the server's (0.6, top_k 20, top_p 0.95) | default sampling |

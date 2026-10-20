@@ -34,7 +34,8 @@ class Settings:
     parallel: int = 4
     drafts: bool = True
     thinking: bool = False
-    max_tokens: int = 32768
+    max_tokens: int = 50176
+    thinking_budget: int = 49152
     temperature: str = ""
     prompt_cache_gib: float = 32
     prompt_cache_over_cap: bool = False
@@ -118,6 +119,8 @@ class Settings:
         if self.temperature:
             a += ["--temperature", self.temperature]
         a.append("--thinking" if self.thinking else "--no-thinking")
+        if self.thinking_budget > 0:
+            a += ["--thinking-budget", str(self.thinking_budget)]
         if self.drafts:
             a += ["--drafter", str(self.drafter), "--drafter-bits", str(self.drafter_bits)]
         else:

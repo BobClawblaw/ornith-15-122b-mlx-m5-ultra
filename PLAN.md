@@ -151,3 +151,10 @@ Each entry says what was done, how it was measured, and what it found. Newest la
   8.2 s, its next turn 0.15 s; needles at 96,042 and 245,370 tokens recalled (59 s and 262 s); API checks 11/12 (the
   streaming check's more-than-5-chunks threshold missed a complete, correct reply sent in 5 drafted chunks); image
   checks 16/17 (GIF refused by design).
+- Thinking quality (2026-10-20 16:20, engine 30e5dcb4): the harness's `thinking` plan as written, a 48k reasoning budget
+  (the server with `--thinking-budget 49152 --max-tokens 50176`, now the recipe's `thinking_budget` and `max_tokens`
+  defaults; the suite from the Flash Next recipe at 291734b, which has `--reasoning-budget` and counts cut replies):
+  GSM8K 244/250 with none of the 250 cut at the cap; the harness's reasoning check 10/10, no leaks, none cut (run
+  20261020-161950-thinking). An earlier attempt ran the glm53 recipe's suite, which lacks the budget, at its default
+  caps (1,024 tokens for GSM8K, 4,096 for MATH-500); it was stopped and is not counted. `zig build test` (with the
+  Metal checks) and fuzz-cortheon pass on 30e5dcb4.
