@@ -12,7 +12,15 @@ The engine is TensorFold's 27B family taught the routed block, from branch `orni
 [BobClawblaw/TensorFold](https://github.com/BobClawblaw/TensorFold) at the commit `local.example.toml` names;
 `python3 -m mac build` builds it. [PLAN.md](PLAN.md) is the work log, with how each number was measured.
 
-## Measured on this Mac
+> **Correction (2026-10-20):** the numbers below are withdrawn. The engine commit they were measured on had a routing
+> bug: Ornith's config omits `norm_topk_prob`, which means renormalized top-k weights, and the Metal port read it as
+> unset. Replies were measurably wrong (a first quality run scored GSM8K 60/250). The "exactness" figures were measured
+> against an mlx-vlm reference whose routing had been rewritten with the same omission, so they did not show it. The
+> fix is TensorFold commit 30e5dcb4 (branch `ornith-main`); against stock mlx-vlm it matches to KL 0.0001 one token at a
+> time. Quality and speed are being re-measured on it, and this README will be replaced with those results. Until then,
+> do not rely on the tables below or on builds of earlier commits.
+
+## Measured on this Mac (withdrawn, see the correction above)
 
 Mac Studio M5 Ultra (256 GB), the 4-bit checkpoint, four streams of 262,144 tokens, a 32 GiB prompt cache, images,
 the drafter (2026-10-20). The engine loads in 10 s and keeps 93 GiB resident (weights, drafter, tower) plus the
