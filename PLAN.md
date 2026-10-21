@@ -165,3 +165,24 @@ Each entry says what was done, how it was measured, and what it found. Newest la
   132.6/282.6/302.7/373.1, list 149.5/391.0/385.1/422.1 tok/s; plain run 20261020-163959: prose 95.3/227.1/315.0/404.5,
   code 95.5/232.7/322.5/415.0, structured 95.4/233.5/327.2/414.9, list 95.5/240.2/338.6/437.5; first token 0.42-0.59 s
   at 16. The suite's concurrent check (16 streams together against alone) 12/12 in both. The recipe's cap is 16.
+- 1M context with static YaRN (2026-10-20/21, engine 5ec491c8, pushed as 9328aff8 after a comment-only amend for the
+  lean check): qwen27 reads `rope_scaling: yarn` or applies it itself when `--context` passes the 262,144 window (factor
+  the window multiple rounded up, at most 4), vLLM's table (betas 32 and 1, floored and ceiled correction range, a
+  linear ramp) with cos/sin scaled by 0.1 ln(4) + 1 = 1.1386; the Metal rotary takes the table and uses precise trig on
+  that path (angles reach 10^6), the plain path is untouched. A GPU test checks the kernel against float64 at positions
+  up to 1,048,575. Against stock mlx-vlm fed one token at a time with its rotary set to the YaRN table (its fused Metal
+  rotary drops the scale, so the reference uses the unfused one): 23-token prompt, decode KL 0.005, top token 100%;
+  8,192-token prompt KL 0.081, 88% (the plain path against plain mlx-vlm: 0.083/83% and 0.24/79%). YaRN on against off
+  at 8k: KL 1.74, so the table is live.
+- 1M serving (`CONTEXT=1048576 PARALLEL=1`): 94 GiB loaded; two 1M streams are refused (159.4 + 25.3 GiB > 179.2).
+  API checks 11/12 (the same streaming-chunk quirk as plain). Needles at 96,042 and 245,370 tokens recalled in 59 s and
+  261 s; five vault codes in a 1,027,846-token Python-source haystack at depths 2/25/50/75/97%, all right: first prompt
+  4,651 s, later turns 1.9-2.1 s from the cache, decode about 6.5 tok/s there. Harness target
+  `ornith-15-122b-yarn1m-native-m5`: ruler one stream drafted 92.4/193.7/123.8/130.0 (run 20261020-213454), plain
+  95.3/95.3/95.1/95.2 (20261020-213756); thinking off (20261020-214200): GSM8K 245, MATH-500 428, MGSM 215, MMLU 294,
+  IFEval 116, tools 56/60, JSON 30/30, serving checks all pass; thinking on at the 48k budget (20261020-222403): GSM8K
+  247/250. Images 16/17 (GIF refused, as plain). Against plain rope, YaRN loses a little at short prompts (MATH-500 -10,
+  MGSM -5, IFEval -4), so the default stays 262,144 and 1M is a setting.
+- 9328aff8 at the default 262,144 (2026-10-21, the launchd unit): six greedy replies (five short prompts, one of 20,142
+  tokens) identical to 30e5dcb4's; ruler drafted one stream 94.4/174.2/126.6/155.1 (run 20261021-022004). Engine CI
+  checks on 9328aff8: `zig build test`, test-kernel-contract, test-golden, fuzz-cortheon, fmt, lean (no new problems).

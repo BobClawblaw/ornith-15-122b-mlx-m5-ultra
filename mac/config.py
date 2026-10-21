@@ -187,8 +187,8 @@ def validate(s: Settings) -> list[str]:
         out.append("drafter_bits must be 4 (prepared 4-bit copies) or 0 (bf16)")
     if s.parallel < 1 or s.parallel > 16:
         out.append("parallel must be 1 to 16 (measured up to 16; at 262k each stream takes 5.9 GiB, see README)")
-    if s.context < 1 or s.context > 262144:
-        out.append("context must be 1 to 262144 (the checkpoint's window)")
+    if s.context < 1 or s.context > 1048576:
+        out.append("context must be 1 to 1048576 (past the checkpoint's 262144 the engine applies YaRN, up to x4; README)")
     if not s.run_binary.exists():
         out.append(f"no engine binary at {s.run_binary}: python3 -m mac build")
     if s.vision and not s.jpeg_lib.exists():
