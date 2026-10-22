@@ -25,12 +25,16 @@ def health(s: Settings, timeout: float = 3) -> dict | None:
 
 
 def pid(s: Settings) -> int | None:
+    """The running server's pid; a pid file whose process is gone or a zombie (exited, unreaped) is removed."""
     try:
         p = int(s.pid_file.read_text())
-        os.kill(p, 0)
-        return p
+        state = subprocess.run(["ps", "-o", "stat=", "-p", str(p)], capture_output=True, text=True).stdout.strip()
+        if state and not state.startswith("Z"):
+            return p
     except Exception:
         return None
+    s.pid_file.unlink(missing_ok=True)
+    return None
 
 
 def free_gib() -> float:
@@ -50,15 +54,14 @@ def memory_check(s: Settings) -> None:
         raise SystemExit(f"{have:.0f} GiB free, the server needs {need:.0f}: stop other models first")
 
 
-def wait_ready(s: Settings, proc: int, limit: float = 900) -> None:
+def wait_ready(s: Settings, proc: subprocess.Popen, limit: float = 900) -> None:
     t0 = time.time()
     while time.time() - t0 < limit:
         if health(s):
             return
-        try:
-            os.kill(proc, 0)
-        except OSError:
-            raise SystemExit(f"the server exited while loading; see {s.log_file}")
+        if proc.poll() is not None:  # exited (a refused setting, say): poll() reaps it, where kill(pid, 0) sees a zombie
+            s.pid_file.unlink(missing_ok=True)
+            raise SystemExit(f"the server exited while loading (status {proc.returncode}); see {s.log_file}")
         time.sleep(3)
     raise SystemExit(f"not ready after {limit:.0f} s; see {s.log_file}")
 
@@ -74,7 +77,7 @@ def up(s: Settings, foreground: bool = False) -> None:
     log = open(s.log_file, "ab")
     p = subprocess.Popen(args, stdout=log, stderr=subprocess.STDOUT, env=s.server_env(), start_new_session=True)
     s.pid_file.write_text(str(p.pid))
-    wait_ready(s, p.pid)
+    wait_ready(s, p)
     print(f"serving {s.served_name} at {s.url} (pid {p.pid})")
 
 
