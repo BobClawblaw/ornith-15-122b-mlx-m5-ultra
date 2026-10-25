@@ -5,8 +5,8 @@ bits = 4
 
 [engine]
 tensorfold_src = "~/github/TensorFold"            # a clone of github.com/BobClawblaw/TensorFold holding tensorfold_sha
-tensorfold_sha = "9328aff8a6c470b026aee7cefe53a0527de44814"                      # branch ornith-main (README.md)
-zig = "~/tools/zig-aarch64-macos-0.17.0/zig"
+tensorfold_sha = "f1097d684e928c4fce5536308154256679c0d66c"                      # branch ornith-main-115 (README.md)
+zig = "zig"
 
 [local]
 host = "127.0.0.1"

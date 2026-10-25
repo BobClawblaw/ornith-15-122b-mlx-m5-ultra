@@ -8,13 +8,14 @@ engine: the checkpoint converted to 4-bit MLX affine (groups of 64, public at
 kept between turns, up to four streams, tools and structured output, an OpenAI-compatible API, and a launchd unit for
 the LAN. A 1M-token window (YaRN, one stream) is a setting away; the default stays the checkpoint's 262,144.
 
-The engine is TensorFold's 27B family taught the routed block, from branch `ornith-main` of
+The engine is TensorFold's 27B family taught the routed block, from branch `ornith-main-115` of
 [BobClawblaw/TensorFold](https://github.com/BobClawblaw/TensorFold) at the commit `local.example.toml` names;
 `python3 -m mac build` builds it. [PLAN.md](PLAN.md) is the work log, with how each number was measured.
 
 ## Measured on this Mac
 
-Mac Studio M5 Ultra (256 GB), TensorFold `ornith-main` at 30e5dcb4 (the pinned 9328aff8 adds YaRN, below; at 262,144 it
+Mac Studio M5 Ultra (256 GB), TensorFold `ornith-main` at 30e5dcb4 (9328aff8 adds YaRN, below; the pinned f1097d68 is
+9328aff8 merged with TensorFold main past v1.1.5, its step logits byte-identical to 9328aff8's; at 262,144 it
 gives the same greedy replies on six prompts up to 20k tokens, and its ruler, run `20261021-022004`, matches), the 4-bit
 checkpoint, four streams of 262,144 tokens, a 32 GiB prompt cache, images, the drafter (2026-10-20). The engine loads in
 10 s and keeps 93 GiB resident (weights, drafter, tower) plus the streams' caches as they fill. The recipe harness's
@@ -81,6 +82,7 @@ measured.
 | Long context | a code hidden at the start of 96k- and 245k-token prompts is recalled; at 1M (YaRN), five codes in a 1,027,846-token prompt |
 | Drafts | drafted and undrafted greedy replies identical |
 | Streaming, concurrency | streamed replies complete; four requests at once each right |
+| Harness `quick` (f1097d68, 2026-10-25) | structured output 18/18 with drafted equal to plain, seeded sampling 9/9, a 60-turn soak and 12 concurrent replies each equal to the request alone, streaming, stop, copy, max-tokens, multi-turn 8/8. Three checks do not pass, on 9328aff8 just the same: a named tool with thinking on repeats its call until the 3,000-token cap; a cold prompt and a turn resumed from the cache can give different greedy text at a near tie (the prompt pass and the row path sum differently, the KL 0.01-0.04 below); image URLs are refused (the recipe serves `--vision` without `--vision-urls`: send images as data URLs) |
 
 Exactness of the port: against stock mlx-vlm 0.7.9 on the same checkpoint, fed one token at a time, the engine's
 logits agree to KL 0.0001 with the same top token (and a constant offset across the vocabulary, which softmax and
