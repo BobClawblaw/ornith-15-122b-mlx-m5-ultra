@@ -1,4 +1,4 @@
-"""python3 -m mac venv|convert|build|up|down|status|logs|command|chat|validate|launchd"""
+"""python3 -m mac download|build|up|down|status|logs|command|chat|validate|launchd"""
 
 import argparse
 import shlex
@@ -11,9 +11,7 @@ from . import config, engine, launchd, serve
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(prog="python3 -m mac", description=__doc__)
     sub = p.add_subparsers(dest="cmd", required=True)
-    sub.add_parser("venv", help="the conversion stack (requirements.txt) into .venv with uv")
-    c = sub.add_parser("convert", help="Ornith's release (in the Hugging Face cache) to the 4- or 8-bit checkpoint")
-    c.add_argument("--bits", type=int, default=None, help="4 or 8 (default: the settings' bits)")
+    sub.add_parser("download", help="the publisher's pinned checkpoint into model_dir, and the pinned drafter")
     b = sub.add_parser("build", help="the pinned engine, libtfgrammar and libjpeg-turbo, under tf_cache")
     b.add_argument("--rebuild", action="store_true")
     up = sub.add_parser("up", help="start the server (in the background; --foreground for the launchd unit)")
@@ -31,24 +29,10 @@ def main(argv: list[str] | None = None) -> int:
     ld.add_argument("--port", type=int, default=8888)
     a = p.parse_args(argv)
     s = config.load()
-    if a.cmd == "venv":
-        root = str(config.ROOT)
-        for cmd in (["uv", "venv", "--python", "3.12", f"{root}/.venv"],
-                    ["uv", "pip", "install", "--python", f"{root}/.venv/bin/python", "-r", f"{root}/requirements.txt"]):
+    if a.cmd == "download":
+        for cmd in s.download_args():
             print("+", shlex.join(cmd), flush=True)
             subprocess.run(cmd, check=True)
-    elif a.cmd == "convert":
-        if not (s.source_snapshot / "model.safetensors.index.json").exists():
-            raise SystemExit(f"{s.source_repo}@{s.source_revision[:8]} is not in the Hugging Face cache: "
-                             f"hf download {s.source_repo} --revision {s.source_revision}")
-        if not s.interpreter.exists():
-            raise SystemExit(f"no interpreter at {s.interpreter}: python3 -m mac venv")
-        cmd, out = s.convert_args(a.bits or s.bits)
-        print("+", shlex.join(cmd), flush=True)
-        rc = subprocess.run(cmd, cwd=config.ROOT).returncode
-        if rc == 0:
-            print(f"wrote {out}")
-        return rc
     elif a.cmd == "build":
         engine.build(s, rebuild=a.rebuild)
         print(f"engine {s.run_binary}")
@@ -69,7 +53,7 @@ def main(argv: list[str] | None = None) -> int:
         print(serve.chat(s, a.prompt, a.max_tokens))
     elif a.cmd == "validate":
         problems = config.validate(s)
-        print("\n".join(problems) if problems else f"ok: {s.served_name} from {s.model} ({s.bits}-bit) with {s.run_binary} at {s.url}")
+        print("\n".join(problems) if problems else f"ok: {s.served_name} from {s.model} with {s.run_binary} at {s.url}")
         return 1 if problems else 0
     elif a.cmd == "launchd":
         print(launchd.write(s, a.port))

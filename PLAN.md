@@ -186,3 +186,14 @@ Each entry says what was done, how it was measured, and what it found. Newest la
 - 9328aff8 at the default 262,144 (2026-10-21, the launchd unit): six greedy replies (five short prompts, one of 20,142
   tokens) identical to 30e5dcb4's; ruler drafted one stream 94.4/174.2/126.6/155.1 (run 20261021-022004). Engine CI
   checks on 9328aff8: `zig build test`, test-kernel-contract, test-golden, fuzz-cortheon, fmt, lean (no new problems).
+
+## 2026-10-26: the publisher's weights and the PR #1125 engine
+
+The recipe now serves `ornith-ai/Ornith-1.5-122B-MLX-4bit` at `06a57aba4fbae218efc9716bcdf7d6b3035331c8`, as
+published. All 35 files were checked against the hub's sizes and sha256. Its 2,440 tensors match our own conversion's
+in name, dtype and shape; the bytes differ, and its config.json keeps the chat end token 248046 in
+generation_config.json only, which the server reads, so replies still stop there (the harness stop checks pass).
+The engine is TensorFold PR #1125's head aa472b6d2 (branch `ornith-pr-v2`): main 1.1.6 plus the qwen3_5_moe family,
+rebuilt after the maintainer's review. Runs `20261026-083724-quick`, `20261026-084207-mlx-speed` and
+`20261026-084338-prefill`. The previous engine (1429b56b, with wider prompt chunks) and our own conversion moved to
+the `optimizations` branch, with every number measured on them.

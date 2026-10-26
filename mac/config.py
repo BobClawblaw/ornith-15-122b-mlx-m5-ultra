@@ -15,8 +15,6 @@ class Settings:
     source_revision: str = ""
     served_name: str = ""
     model_dir: str = ""
-    bits: int = 4
-    group_size: int = 64
     drafter_repo: str = ""
     drafter_revision: str = ""
     drafter_dir: str = ""
@@ -26,7 +24,6 @@ class Settings:
     zig: str = "zig"
     zig_cpu: str = "native"
     binary: str = ""
-    python: str = ".venv/bin/python"
     host: str = "127.0.0.1"
     port: int = 8891
     tf_cache: str = "~/.cache/ornith-15-122b"
@@ -64,15 +61,6 @@ class Settings:
     def drafter(self) -> Path:
         """The DFlash2 drafter: a directory of its own, or the pinned release in the Hugging Face cache."""
         return self.path(self.drafter_dir) if self.drafter_dir else self.snapshot(self.drafter_repo, self.drafter_revision)
-
-    @property
-    def source_snapshot(self) -> Path:
-        return self.snapshot(self.source_repo, self.source_revision)
-
-    @property
-    def interpreter(self) -> Path:
-        p = self.path(self.python)
-        return p if p.is_absolute() else ROOT / p
 
     @property
     def cache(self) -> Path:
@@ -145,10 +133,10 @@ class Settings:
         env["TENSORFOLD_LIBTURBOJPEG"] = str(self.jpeg_lib)
         return env
 
-    def convert_args(self, bits: int) -> tuple[list[str], Path]:
-        out = self.path(f"~/models/Ornith-1.5-122B-MLX-{bits}bit")
-        return [str(self.interpreter), "-m", "mlx_vlm.convert", "--hf-path", str(self.source_snapshot), "--mlx-path", str(out),
-                "-q", "--q-bits", str(bits), "--q-group-size", str(self.group_size), "--q-mode", "affine", "--dtype", "bfloat16"], out
+    def download_args(self) -> list[list[str]]:
+        """The publisher's checkpoint into model_dir and the drafter into the Hugging Face cache, both at their pins."""
+        return [["hf", "download", self.source_repo, "--revision", self.source_revision, "--local-dir", str(self.model)],
+                ["hf", "download", self.drafter_repo, "--revision", self.drafter_revision]]
 
 
 def _coerce(kind: type, raw):
@@ -180,7 +168,7 @@ def validate(s: Settings) -> list[str]:
     if not s.binary and not s.tensorfold_sha:
         out.append("no engine: set tensorfold_sha (local.toml) or binary")
     if not (s.model / "config.json").exists():
-        out.append(f"no converted checkpoint at {s.model}: python3 -m mac convert")
+        out.append(f"no checkpoint at {s.model}: python3 -m mac download")
     if s.drafts and not (s.drafter / "config.json").exists():
         out.append(f"drafts = true but there is no drafter at {s.drafter}: hf download {s.drafter_repo} --revision {s.drafter_revision}")
     if s.drafter_bits not in (0, 4):

@@ -2,13 +2,11 @@
 # environment variable of the same name in upper case overrides both (PORT=8891 python3 -m mac up).
 
 [model]
-# Ornith's release (bf16, 250 GB), converted by `python3 -m mac convert` (mlx-vlm, affine groups of 64)
-source_repo = "ornith-ai/Ornith-1.5-122B"
-source_revision = "346ec829dd63e107aad8771d74e885e901cec95d"
+# the publisher's own 4-bit MLX checkpoint (70 GB), served as published: `python3 -m mac download`
+source_repo = "ornith-ai/Ornith-1.5-122B-MLX-4bit"
+source_revision = "06a57aba4fbae218efc9716bcdf7d6b3035331c8"
 served_name = "Ornith-1.5-122B"
-model_dir = "~/models/Ornith-1.5-122B-MLX-4bit"   # or the 8-bit one; `convert` writes both names from `bits`
-bits = 4
-group_size = 64
+model_dir = "~/models/Ornith-1.5-122B-MLX-4bit"
 
 [drafter]
 # the DFlash2 drafter (bf16, 1.9 GB): `hf download incoai/Ornith-1.5-122B-DFlash2 --revision <drafter_revision>`
