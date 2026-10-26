@@ -55,10 +55,14 @@ Serving checks (harness `quick`, run `20261026-124829-quick`):
 - **Fail:** a named tool call with thinking on repeats its call. Image URLs are refused: the recipe serves `--vision`
   without `--vision-urls`, so send images as data URLs.
 
-Images (harness `glm-vision`, run `20261026-131919-glm-vision`, the suite's vision checks with images sent as data
-URLs): 4/4 right, covering two shapes with their colours and caption, text read exactly, three triangles counted, and
-two images named in order. Sixteen image requests together give the same replies as each alone (16/16). The suite's
-video cases did not run (no ffmpeg on this Mac), so video is not checked.
+Images (harness `glm-vision`, runs `20261026-131919-glm-vision` and `20261026-132723-glm-vision`, the suite's vision
+checks with images sent as data URLs): 4/4 right, covering two shapes with their colours and caption, text read
+exactly, three triangles counted, and two images named in order. Sixteen image requests together give the same replies
+as each alone (16/16).
+
+Video is not supported. The checkpoint declares video input, but TensorFold's qwen27 family has no video path (only
+its GLM and Flash Next families do), so the server answers `video_url` parts with HTTP 400 ("content parts must be text
+or image_url"). Both of the suite's video cases fail that way.
 
 The engine's own checks for PR #1125 (kernel contract, attention precision, chunk independence, a dense 27B A/B
 against TensorFold main) are in the PR.
