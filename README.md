@@ -6,7 +6,8 @@ engine: the checkpoint converted to 4-bit MLX affine (groups of 64, public at
 [BobClawblaw/Ornith-1.5-122B-MLX-4bit](https://huggingface.co/BobClawblaw/Ornith-1.5-122B-MLX-4bit)), the
 [incoai/Ornith-1.5-122B-DFlash2](https://huggingface.co/incoai/Ornith-1.5-122B-DFlash2) drafter, images, a prompt cache
 kept between turns, up to four streams, tools and structured output, an OpenAI-compatible API, and a launchd unit for
-the LAN. A 1M-token window (YaRN, one stream) is a setting away; the default stays the checkpoint's 262,144.
+the LAN. The default stays the checkpoint's 262,144; a 524,288-token window (YaRN x2, four streams) and a 1M-token one
+(YaRN x4, one or two streams) are a setting away, both measured below.
 
 The engine is TensorFold's 27B family taught the routed block, from branch `ornith-main-115` of
 [BobClawblaw/TensorFold](https://github.com/BobClawblaw/TensorFold) at the commit `local.example.toml` names;
@@ -53,7 +54,7 @@ the streams and the prompt cache inside 70% of the Mac's memory: 11 streams fit 
 cache, 15 beside 8 GiB, 16 beside 4 GiB (`PARALLEL=16 PROMPT_CACHE_GIB=4 DRAFTS=false python3 -m mac up`).
 
 Prompts, cold, through the server (harness `prefill`, thinking off; engine 1429b56b against f1097d68, the same build
-without the three prompt commits; the recipe's 524,288-token, two-stream setting):
+without the three prompt commits; this Mac's served setting, 524,288 tokens and two streams):
 
 | Prompt | f1097d68 | 1429b56b | |
 |---|---|---|---|
@@ -76,7 +77,7 @@ resumes from the cache in 0.15 s. The three commits (prompt state, decode state 
 - **Prompt attention in slices.** The prompt kernel's partials grow with the rows times the keys, so they hold 256 rows
   and a chunk's queries go through in slices of whole tiles; a row's result is its own either way.
 
-Memory, from the server's own report at the recipe's setting (524,288 tokens, two streams): 97.0 GiB in use once
+Memory, from the server's own report at that setting (524,288 tokens, two streams): 97.0 GiB in use once
 loaded on 1429b56b against 114.8 on f1097d68 (the partials, 1,024 rows deep on f1097d68, were most of the difference;
 the 4,096-row chunk itself costs about 6.5 GiB, mostly the GDN pool's per-layer projections, and `TF_PROMPT_ROWS=1024`
 gives it back). The 32 GiB prompt cache fits with 34.9 GiB to spare under the 70% line.
@@ -121,14 +122,41 @@ unset; a first quality run scored GSM8K 60/250. That version's exactness figures
 mlx-vlm reference whose routing was rewritten with the same omission. The bug is fixed in 30e5dcb4; every number
 above is measured on it. PLAN.md has the details.
 
+## A 524,288-token window (YaRN x2)
+
+`CONTEXT=524288 python3 -m mac up` (four streams, the 32 GiB prompt cache). Measured on 1429b56b, 2026-10-26, target
+`ornith-15-122b-native-m5` at that setting, thinking off at the server:
+- **Memory:** 97.1 GiB once loaded; each further stream reserves 12.3 GiB as it fills (37.8 GiB for the other
+  three); the 32 GiB cache fits with 10 GiB under the 70% line. Two streams: 97.0 GiB and 13.3 reserved.
+- **Recall:** five codes at depths 2%, 25%, 50%, 75% and 97% of a 476,201-token prompt (Python source), asked one a
+  turn, all five right. The first turn's prompt took 915 s (15.2 min, about 520 tok/s); each later turn resumed from the
+  cache in 0.5-0.6 s; replies at that depth come at 13.7-14.1 tok/s.
+- **Speed:** ruler (run `20261026-030256`), drafted, tok/s summed: one stream 92.8/171.3/122.5/154.7, two
+  180.7/295.5/229.9/319.6, four 215.0/346.3/277.7/360.9 (first token 0.13-0.16 s at four). Cold prompts (run
+  `20261026-030425`, thinking off): 2,254 tokens 3,248 tok/s, 8,762 tokens 3,162, 35,024 tokens 2,660, 139,831 tokens
+  1,501; with thinking on 2,728, 3,128, 2,648, 1,495. The same as at 262,144 and at two streams.
+- **Serving checks** (run `20261026-025716`): structured output 18/18 with drafted equal to plain, seeded sampling 9/9,
+  turns resumed equal to cold, a 60-turn soak and 12 concurrent replies each equal to the request alone, streaming,
+  stop, copy, max-tokens, multi-turn 8/8; the named-tool-with-thinking and image-URL checks fail as at 262,144.
+- **Quality** (thinking off: run `20261026-030806-dsv41-quality-off`; thinking on: run `20261026-033758-thinking`):
+
+| | GSM8K | MATH-500 | MGSM | MMLU | IFEval loose | tools | JSON | GSM8K, thinking |
+|---|---|---|---|---|---|---|---|---|
+| 262,144, plain rope | 245 | 438 | 220 | 294 | 120 | 55 | 30 | 244 |
+| 524,288, YaRN x2 | 241 | 432 | 212 | 300 | 114 | 56 | 30 | 245 |
+| 1,048,576, YaRN x4 | 245 | 428 | 215 | 294 | 116 | 56 | 30 | 247 |
+
+A small, mixed cost against plain rope (GSM8K -4, MGSM -8, IFEval -6, MMLU +6 of their totals), which is why the
+default stays at 262,144; turn it on when documents past 262,144 tokens are the point.
+
 ## A 1M-token window (YaRN)
 
-Ornith's model card validates static YaRN x4 over its 262,144-token window. Set `context` past the window
-(`CONTEXT=1048576 PARALLEL=1 python3 -m mac up`) and the engine stretches the rotation itself: the factor is the window
-multiple rounded up (x2 to 524,288, x4 to 1,048,576; only x4 is measured), as vLLM's YaRN builds it (attention factor
-0.1 ln(factor) + 1, precise cos/sin on that path). The checkpoint is unchanged; a config with a `rope_scaling: yarn`
-block works too. The default stays at 262,144 because YaRN changes every position, short prompts too, and costs a little
-quality there.
+Ornith's model card validates static YaRN x4 over its 262,144-token window. Past the window the engine stretches the
+rotation itself: the factor is the window multiple rounded up (x2 to 524,288 with `CONTEXT=524288 python3 -m mac up`,
+x4 to 1,048,576 with `CONTEXT=1048576 PARALLEL=1`), as vLLM's YaRN builds it (attention factor 0.1 ln(factor) + 1,
+precise cos/sin on that path). The checkpoint is unchanged; a config with a `rope_scaling: yarn` block works too. The
+default stays at 262,144 because YaRN changes every position, short prompts too, and costs a little quality there; each
+factor's cost is measured against plain rope below.
 
 Measured on 1429b56b (2026-10-26; the 5ec491c8 figures of 2026-10-20 in parentheses where they differ), one stream of
 1,048,576 tokens, drafts, images, a 32 GiB prompt cache, target `ornith-15-122b-yarn1m-native-m5`:
@@ -153,13 +181,9 @@ Measured on 1429b56b (2026-10-26; the 5ec491c8 figures of 2026-10-20 in parenthe
 - **Exactness:** against stock mlx-vlm with its rotary set to the same YaRN table (fed one token at a time), the
   engine's YaRN logits agree as closely as its plain-rope logits do with YaRN off.
 
-Quality with YaRN on, against the default (thinking off: run `20261026-004634-dsv41-quality-off`; thinking on: run
-`20261026-013308-thinking`; both on 1429b56b, and score for score what 5ec491c8 gave on 2026-10-20):
-
-| | GSM8K | MATH-500 | MGSM | MMLU | IFEval loose | tools | JSON | GSM8K, thinking |
-|---|---|---|---|---|---|---|---|---|
-| 262,144, plain rope | 245 | 438 | 220 | 294 | 120 | 55 | 30 | 244 |
-| 1,048,576, YaRN x4 | 245 | 428 | 215 | 294 | 116 | 56 | 30 | 247 |
+Quality with YaRN x4 (thinking off: run `20261026-004634-dsv41-quality-off`; thinking on: run `20261026-013308-thinking`;
+both on 1429b56b, and score for score what 5ec491c8 gave on 2026-10-20) is the last row of the table in the 524,288
+section above.
 
 The serving checks pass with YaRN on too (drafts 12/12, streaming, multi-turn, stop, thinking, max-tokens), and the
 image checks give the same results (GIF refused). Turn it on for long documents; leave it off otherwise.
@@ -196,7 +220,7 @@ either (`PORT=8891 python3 -m mac up`).
 |---|---|---|
 | `model_dir`, `bits` | the 4-bit checkpoint | which conversion to serve (`convert --bits 8` writes the 8-bit one) |
 | `tensorfold_src`, `tensorfold_sha`, `zig` | local.toml | the TensorFold checkout, the pinned commit, Zig 0.17.0 |
-| `context` | 262144 | a stream's window; past 262,144 YaRN, up to 1,048,576 with `parallel = 1` (above) |
+| `context` | 262144 | a stream's window; past 262,144 YaRN (x2 to 524,288, x4 to 1,048,576 with `parallel` 1 or 2; above) |
 | `parallel` | 4 | streams decoded together (1 to 16; more streams need a smaller `prompt_cache_gib`, above) |
 | `drafts`, `drafter_bits` | true, 4 | DFlash2 drafts for one stream, the drafter's projections in 4-bit |
 | `thinking` | false | the template's thinking block by default |
@@ -208,8 +232,8 @@ either (`PORT=8891 python3 -m mac up`).
 ## Requirements
 
 A Mac with 256 GB of unified memory: the 4-bit checkpoint with its drafter and tower keeps 93 GiB resident, four
-streams of 262,144 tokens take up to 20 GiB more, and the prompt cache its 32 GiB. Nothing else that holds the GPU's
-memory should run beside it.
+streams of 262,144 tokens take up to 20 GiB more, and the prompt cache its 32 GiB (at 524,288: 97 GiB once loaded and
+12.3 GiB a further stream, above). Nothing else that holds the GPU's memory should run beside it.
 
 ## Layout
 
