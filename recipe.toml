@@ -33,7 +33,7 @@ port = 8891
 tf_cache = "~/.cache/ornith-15-122b"
 
 [serve]
-context = 262144                 # a stream's window (the checkpoint's; up to 1048576 with YaRN, one stream, README)
+context = 262144                 # a stream's window: the checkpoint's own, the most supported
 parallel = 4                     # streams decoded together (1 to 16; 16 at 262k needs prompt_cache_gib 4, README)
 drafts = true                    # DFlash2 drafts for one stream (greedy replies are identical with them off)
 thinking = false                 # the template's thinking block off by default; a request's chat_template_kwargs turns it on
