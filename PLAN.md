@@ -197,3 +197,11 @@ The engine is TensorFold PR #1125's head aa472b6d2 (branch `ornith-pr-v2`): main
 rebuilt after the maintainer's review. Runs `20261026-083724-quick`, `20261026-084207-mlx-speed` and
 `20261026-084338-prefill`. The previous engine (1429b56b, with wider prompt chunks) and our own conversion moved to
 the `optimizations` branch, with every number measured on them.
+- Quality on aa472b6d2 with the publisher's weights (four streams of 262,144, thinking off; run
+  `20261026-103314-dsv41-quality-off`): tools 55/60, json 30/30, IFEval 120/150, GSM8K 245/250, MGSM 220/240, MMLU
+  298/342, MATH-500 438/500; drafts and behaviour all pass. Thinking on, 48k budget (run `20261026-110423-thinking`):
+  GSM8K 244/250, word problems 10/10. Our conversion on 1429b56b (runs `20261026-030806-dsv41-quality-off`,
+  `20261026-033758-thinking`): tools 56, IFEval 114, GSM8K 241, MGSM 212, MMLU 300, MATH-500 432, thinking GSM8K 245.
+  The `thinking` plan's GSM8K needs the budget-aware suite (qwen38-flashnext checkout, 291734b), the thinking-off plan
+  the glm53 checkout (MATH-500); a first thinking run with the glm53 suite (`20261026-110250-thinking`) stopped at
+  `--reasoning-budget` and was rerun.

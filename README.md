@@ -58,8 +58,26 @@ Serving checks (harness `quick`, run `20261026-083724-quick`):
 The engine's own checks for PR #1125 (kernel contract, attention precision, chunk independence, a dense 27B A/B
 against TensorFold main) are in the PR.
 
-Quality: the harness quality suites have not been run on the publisher's checkpoint yet. The figures published
-earlier were measured on a different 4-bit conversion; the `optimizations` branch keeps them.
+Quality, the recipe harness's suites on the same server (greedy, one run each):
+
+| Check | thinking off (`20261026-103314-dsv41-quality-off`) |
+|---|---|
+| tools | 55/60 |
+| json (schema asked in the prompt) | 30/30 |
+| IFEval | 120/150 |
+| GSM8K | 245/250 |
+| MGSM | 220/240 |
+| MMLU | 298/342 |
+| MATH-500 | 438/500 |
+
+Drafts (12/12), streaming, multi-turn, stop strings, the thinking toggle, copying and max-tokens all pass. With thinking
+on and a 49,152-token reasoning budget (run `20261026-110423-thinking`), GSM8K scores 244/250, and the harness's ten
+word problems are all right, each with its reasoning in `reasoning_content`, none cut at 50,176 tokens.
+
+The `optimizations` branch's own 4-bit conversion scored within a few items of these (tools 56, IFEval 114, GSM8K 241,
+MGSM 212, MMLU 300, MATH-500 432; GSM8K 245 thinking on), on its own engine. At these sizes one standard error is about
+five items on IFEval and six on MGSM, so the two are about even, with the publisher's weights slightly ahead. The PR
+head 0f033773 with that conversion ran the same speed as these weights to within 1% at one stream (1% to 4% at four).
 
 ## Quick start
 
