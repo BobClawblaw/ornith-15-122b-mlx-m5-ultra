@@ -130,22 +130,31 @@ multiple rounded up (x2 to 524,288, x4 to 1,048,576; only x4 is measured), as vL
 block works too. The default stays at 262,144 because YaRN changes every position, short prompts too, and costs a little
 quality there.
 
-Measured on 5ec491c8 (2026-10-20; 9328aff8 differs from it only in comments), one stream of 1,048,576 tokens, drafts,
-images, a 32 GiB prompt cache, target `ornith-15-122b-yarn1m-native-m5`:
-- **Memory:** one stream only; the engine holds 94 GiB once loaded, and two 1M streams pass the 70% cap. On f1097d68
-  (merged with TensorFold main) the same server held 158.9 GiB, the prompt attention's partials grown with the keys,
-  and refused its 32 GiB cache under the 70% line; on 1429b56b, with the partials 256 rows deep, it holds 116.7 GiB
-  and starts with the cache. The 1M speed and recall figures below were not remeasured on 1429b56b.
-- **Recall:** five codes at depths 2%, 25%, 50%, 75% and 97% of a 1,027,846-token prompt (Python source), asked one a
-  turn, all five right. The first turn's prompt took 4,651 s (77.5 min, about 220 tok/s); each later turn resumed from
-  the prompt cache in 1.9-2.1 s. Replies at that depth come at about 6.5 tok/s.
-- **Speed at short prompts** (ruler, one stream): drafts off 95.3/95.3/95.1/95.2 tok/s (run `20261020-213756`), drafted
-  92.4/193.7/123.8/130.0 (run `20261020-213454`), the same as without YaRN.
+Measured on 1429b56b (2026-10-26; the 5ec491c8 figures of 2026-10-20 in parentheses where they differ), one stream of
+1,048,576 tokens, drafts, images, a 32 GiB prompt cache, target `ornith-15-122b-yarn1m-native-m5`:
+- **Memory:** the engine holds 116.7 GiB once loaded and each 1M stream reserves about 24.6 GiB more as it fills
+  (5ec491c8: 94 GiB; f1097d68, merged with TensorFold main, held 158.9 GiB, the prompt attention's partials grown with
+  the keys, and refused the 32 GiB cache under the 70% line; 1429b56b keeps those partials 256 rows deep). Under the
+  70% line that is two 1M streams with the 32 GiB prompt cache (2.7 GiB to spare), three with a cache of 8 GiB or
+  less (`PARALLEL=3 PROMPT_CACHE_GIB=8`), and four only with no cache and past the line (117.6 + 73.8 GiB reserved),
+  which is not recommended. The figures below are one stream's.
+- **Recall:** five codes at depths 2%, 25%, 50%, 75% and 97% of a 984,248-token prompt (Python source), asked one a
+  turn, all five right. The first turn's prompt took 4,355 s (72.6 min, about 226 tok/s; 5ec491c8: 4,651 s for
+  1,027,846 tokens); each later turn resumed from the prompt cache in 1.1-1.9 s (1.9-2.1). Replies at that depth come at
+  6.1-7.4 tok/s (about 6.5). A million-token pass is attention-bound, so the prompt gains measured up to 140k tokens
+  mostly fall away here.
+- **Speed at short prompts** (ruler, one stream, prose/code/structured/list): drafts off 93.5/93.5/93.6/93.7 tok/s (run
+  `20261026-004241`; 5ec491c8: 95.3/95.3/95.1/95.2), the same as without YaRN. Drafted, three runs on 1429b56b:
+  77.7-86.4/160.6-183.2/105.8-119.1/111.3-125.4 (runs `20261026-004002`, `20261026-013048` and a third with an 8 GiB
+  cache); f1097d68 on the same night 85.6/179.8/122.5/129.5; 5ec491c8 on 2026-10-20 92.4/193.7/123.8/130.0. At this
+  window drafted decode scatters between runs and sits below the 262,144 setting's 93/172/123/155, and the drop came
+  with the merge with TensorFold main (the three prompt commits leave decode bit-identical); on prose and list it is
+  slower than drafts off. Not yet explained; `DRAFTS=false` is the safer setting at 1M until it is.
 - **Exactness:** against stock mlx-vlm with its rotary set to the same YaRN table (fed one token at a time), the
   engine's YaRN logits agree as closely as its plain-rope logits do with YaRN off.
 
-Quality with YaRN on, against the default (thinking off: run `20261020-214200-dsv41-quality-off`; thinking on: run
-`20261020-222403-thinking`):
+Quality with YaRN on, against the default (thinking off: run `20261026-004634-dsv41-quality-off`; thinking on: run
+`20261026-013308-thinking`; both on 1429b56b, and score for score what 5ec491c8 gave on 2026-10-20):
 
 | | GSM8K | MATH-500 | MGSM | MMLU | IFEval loose | tools | JSON | GSM8K, thinking |
 |---|---|---|---|---|---|---|---|---|
