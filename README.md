@@ -55,6 +55,12 @@ cache, 15 beside 8 GiB, 16 beside 4 GiB (`PARALLEL=16 PROMPT_CACHE_GIB=4 DRAFTS=
 Prompts: a 19,235-token turn takes 8.2 s through the server (2,350 tok/s), its next turn 0.15 s from the cache; a
 96,042-token prompt 59 s, a 245,370-token one 262 s.
 
+`TF_PROMPT_ROWS=2048` in the server's environment doubles the prompt chunk (the family's default for routed checkpoints
+is 1,024 rows): an 8,192-token prompt ran at 2,659 tok/s against 2,490 on engine f1097d68, with the prompt state, the
+decode state and the following 48 steps' logits byte-identical. It is not the default because the prompt pass's
+attention scratch grows with the chunk times the window: about 17 GiB more at 262,144 tokens and 34 GiB more at 524,288,
+where it no longer leaves room for the 32 GiB prompt cache under the 70% line.
+
 TensorFold leaderboard: the board's community-v1 suite on `BobClawblaw/Ornith-1.5-122B-MLX-4bit` with the DFlash2
 drafter, [result](https://tensorfold.dev/benchmarks?result=ca868622-4998-43bc-b78c-ed624b91fc8b) (2026-10-21; the
 engine commit plus the client's `--suite community-v1` protocol, which the board accepts).
