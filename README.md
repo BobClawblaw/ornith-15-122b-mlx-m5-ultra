@@ -14,9 +14,9 @@ The engine is TensorFold's 27B family taught the routed block, from branch `orni
 
 ## Measured on this Mac
 
-Mac Studio M5 Ultra (256 GB), TensorFold `ornith-main` at 30e5dcb4 (9328aff8 adds YaRN, below; the pinned f1097d68 is
-9328aff8 merged with TensorFold main past v1.1.5, its step logits byte-identical to 9328aff8's; at 262,144 it
-gives the same greedy replies on six prompts up to 20k tokens, and its ruler, run `20261021-022004`, matches), the 4-bit
+Mac Studio M5 Ultra (256 GB), TensorFold `ornith-main` at 30e5dcb4 (9328aff8 adds YaRN, below; the pinned 1429b56b is
+9328aff8 merged with TensorFold main past v1.1.5 plus the prompt-speed commits below, its step logits byte-identical
+to 9328aff8's; at 262,144 it gives the same greedy replies on six prompts up to 20k tokens, and its ruler matches), the 4-bit
 checkpoint, four streams of 262,144 tokens, a 32 GiB prompt cache, images, the drafter (2026-10-20). The engine loads in
 10 s and keeps 93 GiB resident (weights, drafter, tower) plus the streams' caches as they fill. The recipe harness's
 ruler (256-token greedy replies, a distinct prompt a phase; target `ornith-15-122b-native-m5`), in tok/s summed over the
@@ -52,14 +52,34 @@ serve plain (`drafts = false`). Each 262,144-token stream takes 5.9 GiB, and the
 the streams and the prompt cache inside 70% of the Mac's memory: 11 streams fit beside the default 32 GiB prompt
 cache, 15 beside 8 GiB, 16 beside 4 GiB (`PARALLEL=16 PROMPT_CACHE_GIB=4 DRAFTS=false python3 -m mac up`).
 
-Prompts: a 19,235-token turn takes 8.2 s through the server (2,350 tok/s), its next turn 0.15 s from the cache; a
-96,042-token prompt 59 s, a 245,370-token one 262 s.
+Prompts, cold, through the server (harness `prefill`, thinking off; engine 1429b56b against f1097d68, the same build
+without the three prompt commits; the recipe's 524,288-token, two-stream setting):
 
-`TF_PROMPT_ROWS=2048` in the server's environment doubles the prompt chunk (the family's default for routed checkpoints
-is 1,024 rows): an 8,192-token prompt ran at 2,659 tok/s against 2,490 on engine f1097d68, with the prompt state, the
-decode state and the following 48 steps' logits byte-identical. It is not the default because the prompt pass's
-attention scratch grows with the chunk times the window: about 17 GiB more at 262,144 tokens and 34 GiB more at 524,288,
-where it no longer leaves room for the 32 GiB prompt cache under the 70% line.
+| Prompt | f1097d68 | 1429b56b | |
+|---|---|---|---|
+| 2,199 tokens | 2,441 tok/s (0.92 s) | 3,210 tok/s (0.69 s) | +32% |
+| 8,766 tokens | 2,505 tok/s (3.51 s) | 3,189 tok/s (2.75 s) | +27% |
+| 34,975 tokens | 2,171 tok/s (16.1 s) | 2,676 tok/s (13.1 s) | +23% |
+| 139,884 tokens | 1,341 tok/s (104.3 s) | 1,508 tok/s (92.7 s) | +12% |
+
+With thinking on the same prompts run at 2,754, 3,132, 2,662 and 1,502 tok/s. A 19,235-token turn's next turn still
+resumes from the cache in 0.15 s. The three commits (prompt state, decode state and the 48 steps' logits after 2,048- and
+8,192-token prompts byte-identical to f1097d68's, and the harness's drafted, seeded and concurrent checks the same):
+
+- **The expert sort in parallel.** The sorted gathers' slot sort walked every slot three times on one GPU thread: a
+  quarter of an 8,192-token prompt's GPU time, whatever the chunk. Each slot is now counted to its expert and a thread
+  an expert places its slots in order; the same `OFFS`, `ORDER` and weights.
+- **4,096-row prompt chunks** (1,024 before; `TF_PROMPT_ROWS` overrides, 16 to 4096). A chunk reads every expert's
+  weights once, so the expert GEMMs' cost a token halves with each doubling: on tf-qwen27-run's 8,192-token prompt,
+  2,907 tok/s at 1,024 rows, 3,159 at 2,048, 3,279 at 4,096 (all with the parallel sort). Chips without tensor units
+  keep 1,024 rows: their experts take the row kernels, which gain nothing from wider chunks.
+- **Prompt attention in slices.** The prompt kernel's partials grow with the rows times the keys, so they hold 256 rows
+  and a chunk's queries go through in slices of whole tiles; a row's result is its own either way.
+
+Memory, from the server's own report at the recipe's setting (524,288 tokens, two streams): 97.0 GiB in use once
+loaded on 1429b56b against 114.8 on f1097d68 (the partials, 1,024 rows deep on f1097d68, were most of the difference;
+the 4,096-row chunk itself costs about 6.5 GiB, mostly the GDN pool's per-layer projections, and `TF_PROMPT_ROWS=1024`
+gives it back). The 32 GiB prompt cache fits with 34.9 GiB to spare under the 70% line.
 
 TensorFold leaderboard: the board's community-v1 suite on `BobClawblaw/Ornith-1.5-122B-MLX-4bit` with the DFlash2
 drafter, [result](https://tensorfold.dev/benchmarks?result=ca868622-4998-43bc-b78c-ed624b91fc8b) (2026-10-21; the
@@ -88,7 +108,7 @@ measured.
 | Long context | a code hidden at the start of 96k- and 245k-token prompts is recalled; at 1M (YaRN), five codes in a 1,027,846-token prompt |
 | Drafts | drafted and undrafted greedy replies identical |
 | Streaming, concurrency | streamed replies complete; four requests at once each right |
-| Harness `quick` (f1097d68, 2026-10-25) | structured output 18/18 with drafted equal to plain, seeded sampling 9/9, a 60-turn soak and 12 concurrent replies each equal to the request alone, streaming, stop, copy, max-tokens, multi-turn 8/8. Three checks do not pass, on 9328aff8 just the same: a named tool with thinking on repeats its call until the 3,000-token cap; a cold prompt and a turn resumed from the cache can give different greedy text at a near tie (the prompt pass and the row path sum differently, the KL 0.01-0.04 below); image URLs are refused (the recipe serves `--vision` without `--vision-urls`: send images as data URLs) |
+| Harness `quick` (1429b56b, 2026-10-25) | structured output 18/18 with drafted equal to plain, seeded sampling 9/9, a 60-turn soak and 12 concurrent replies each equal to the request alone, streaming, stop, copy, max-tokens, multi-turn 8/8. Three checks do not pass, on 9328aff8 just the same: a named tool with thinking on repeats its call until the 3,000-token cap; a cold prompt and a turn resumed from the cache can give different greedy text at a near tie (the prompt pass and the row path sum differently, the KL 0.01-0.04 below); image URLs are refused (the recipe serves `--vision` without `--vision-urls`: send images as data URLs) |
 
 Exactness of the port: against stock mlx-vlm 0.7.9 on the same checkpoint, fed one token at a time, the engine's
 logits agree to KL 0.0001 with the same top token (and a constant offset across the vocabulary, which softmax and
@@ -112,7 +132,10 @@ quality there.
 
 Measured on 5ec491c8 (2026-10-20; 9328aff8 differs from it only in comments), one stream of 1,048,576 tokens, drafts,
 images, a 32 GiB prompt cache, target `ornith-15-122b-yarn1m-native-m5`:
-- **Memory:** one stream only; the engine holds 94 GiB once loaded, and two 1M streams pass the 70% cap.
+- **Memory:** one stream only; the engine holds 94 GiB once loaded, and two 1M streams pass the 70% cap. On f1097d68
+  (merged with TensorFold main) the same server held 158.9 GiB, the prompt attention's partials grown with the keys,
+  and refused its 32 GiB cache under the 70% line; on 1429b56b, with the partials 256 rows deep, it holds 116.7 GiB
+  and starts with the cache. The 1M speed and recall figures below were not remeasured on 1429b56b.
 - **Recall:** five codes at depths 2%, 25%, 50%, 75% and 97% of a 1,027,846-token prompt (Python source), asked one a
   turn, all five right. The first turn's prompt took 4,651 s (77.5 min, about 220 tok/s); each later turn resumed from
   the prompt cache in 1.9-2.1 s. Replies at that depth come at about 6.5 tok/s.

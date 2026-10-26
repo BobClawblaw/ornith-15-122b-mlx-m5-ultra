@@ -5,7 +5,7 @@ bits = 4
 
 [engine]
 tensorfold_src = "~/github/TensorFold"            # a clone of github.com/BobClawblaw/TensorFold holding tensorfold_sha
-tensorfold_sha = "f1097d684e928c4fce5536308154256679c0d66c"                      # branch ornith-main-115 (README.md)
+tensorfold_sha = "1429b56b44b2b1d101f40debb2522e522e670f2b"                      # branch ornith-main-115 (README.md)
 zig = "zig"
 
 [local]
