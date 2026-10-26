@@ -205,3 +205,10 @@ the `optimizations` branch, with every number measured on them.
   The `thinking` plan's GSM8K needs the budget-aware suite (qwen38-flashnext checkout, 291734b), the thinking-off plan
   the glm53 checkout (MATH-500); a first thinking run with the glm53 suite (`20261026-110250-thinking`) stopped at
   `--reasoning-budget` and was rerun.
+- PR #1125 rebased on main 3f408b6ec as 6e841053e (2026-10-26): `dflash_graph.zig`'s tap literal padded to eight (CI's
+  `dev-tools` build), and the 27B's admission and open moved into `native/metal_qwen27.zig` (lean limit). On the
+  rebased branch the chunk check's tokens and prompt digest equal aa472b6d2's. The pin moves to 6e841053e; on the
+  launchd daemon: runs `20261026-124829-quick`, `20261026-125312-mlx-speed`, `20261026-125443-prefill` (within noise
+  of aa472b6d2's). Quality stays as measured on aa472b6d2.
+- Leaderboard (community-v1, the publisher's checkpoint, aa472b6d2 plus the suite commit):
+  https://tensorfold.dev/benchmarks?result=5615f516-2770-4aa5-b71a-e29f25f70318

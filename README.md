@@ -20,33 +20,33 @@ not this recipe's default.
 
 ## Measured on this Mac
 
-Mac Studio M5 Ultra (256 GB), engine aa472b6d2, the publisher's checkpoint, four streams of 262,144 tokens, a 32 GiB
+Mac Studio M5 Ultra (256 GB), engine 6e841053e, the publisher's checkpoint, four streams of 262,144 tokens, a 32 GiB
 prompt cache, images and the drafter, 2026-10-26. The engine loads in 9 s; the server reports 93.3 GiB in use once loaded
 (92.6 GiB kept wired), and the 32 GiB prompt cache fits under 70% of the Mac's memory.
 
 The recipe harness's ruler (256-token greedy replies, a distinct prompt a phase; target `ornith-15-122b-native-m5`,
-run `20261026-084207-mlx-speed`), drafts on, in tok/s summed over the streams:
+run `20261026-125312-mlx-speed`), drafts on, in tok/s summed over the streams:
 
 | Streams | prose | code | structured | list |
 |---|---|---|---|---|
-| 1 | 94.1 | 157.7 | 132.9 | 149.8 |
-| 2 | 191.6 | 263.2 | 230.7 | 317.3 |
-| 4 | 232.4 | 314.0 | 290.5 | 349.5 |
+| 1 | 93.8 | 157.5 | 132.8 | 149.5 |
+| 2 | 195.3 | 267.3 | 236.0 | 318.0 |
+| 4 | 234.0 | 317.6 | 286.2 | 369.6 |
 
 DFlash2 drafts one stream; the others decode plainly, and a drafted greedy reply equals the undrafted one. On this
 routed model a 16-row verify window reads most experts' weights, so drafts pay on code, lists and structured output
 and about break even on prose. Plain decoding was not re-measured on this checkpoint.
 
-Cold prompts through the server (harness `prefill`, run `20261026-084338-prefill`):
+Cold prompts through the server (harness `prefill`, run `20261026-125443-prefill`):
 
 | Prompt | thinking off | thinking on |
 |---|---|---|
-| about 2,200 tokens | 2,499 tok/s (0.89 s) | 2,158 tok/s (1.02 s) |
-| about 8,800 tokens | 2,482 tok/s (3.55 s) | 2,462 tok/s (3.56 s) |
-| about 35,000 tokens | 2,159 tok/s (16.2 s) | 2,132 tok/s (16.4 s) |
-| about 140,000 tokens | 1,334 tok/s (104.8 s) | 1,333 tok/s (104.8 s) |
+| about 2,200 tokens | 2,506 tok/s (0.88 s) | 2,179 tok/s (1.02 s) |
+| about 8,800 tokens | 2,486 tok/s (3.54 s) | 2,468 tok/s (3.55 s) |
+| about 35,000 tokens | 2,165 tok/s (16.2 s) | 2,156 tok/s (16.2 s) |
+| about 140,000 tokens | 1,339 tok/s (104.3 s) | 1,334 tok/s (104.8 s) |
 
-Serving checks (harness `quick`, run `20261026-083724-quick`):
+Serving checks (harness `quick`, run `20261026-124829-quick`):
 
 - **Pass:** seeded sampling equals its repeat and the undrafted reply (9/9). Structured output obeys its schema
   (18/18, drafted equal to plain 12/12). A resumed turn equals a cold one, with 5,624 of 5,643 tokens from the cache.
@@ -58,7 +58,14 @@ Serving checks (harness `quick`, run `20261026-083724-quick`):
 The engine's own checks for PR #1125 (kernel contract, attention precision, chunk independence, a dense 27B A/B
 against TensorFold main) are in the PR.
 
-Quality, the recipe harness's suites on the same server (greedy, one run each):
+On the [TensorFold leaderboard](https://tensorfold.dev/benchmarks?result=5615f516-2770-4aa5-b71a-e29f25f70318) (the
+board's community-v1 suite, the publisher's checkpoint at 06a57aba with the drafter; engine aa472b6d2 plus the suite
+commit, 2026-10-26), in stream delivery tok/s: code 208.6 and chat 121.7 at temperature 1, code 202.2 and chat 96.2
+greedy.
+
+Quality, the recipe harness's suites on the same checkpoint and settings with engine aa472b6d2, the PR's previous head
+(the same family code on an older TensorFold main; greedy tokens on the PR's chunk check are identical), greedy, one
+run each:
 
 | Check | thinking off (`20261026-103314-dsv41-quality-off`) |
 |---|---|

@@ -4,7 +4,7 @@ model_dir = "~/models/Ornith-1.5-122B-MLX-4bit"   # where `python3 -m mac downlo
 
 [engine]
 tensorfold_src = "~/github/TensorFold"            # a clone of github.com/BobClawblaw/TensorFold holding tensorfold_sha
-tensorfold_sha = "aa472b6d255481d7f0b6ffdf7ae1e47fc23fd1ac"                      # branch ornith-pr-v2: TensorFold PR #1125 (README.md)
+tensorfold_sha = "6e841053eabe2c79da06558b130f447c3f28ed5d"                      # branch ornith-pr-v2: TensorFold PR #1125 (README.md)
 zig = "zig"
 
 [local]
