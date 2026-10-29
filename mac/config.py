@@ -1,5 +1,9 @@
-"""Settings: recipe.toml's defaults, local.toml's overrides for this Mac, then environment variables in upper case."""
+"""Settings: recipe.toml's defaults, local.toml's overrides for this Mac, then environment variables in upper case.
 
+Each file's [weights.<choice>] table (the checkpoint's pin, folder and prompt cache) applies after its other sections,
+for the `weights` chosen, so `WEIGHTS=8bit` switches all of them together."""
+
+import json
 import os
 import tomllib
 from dataclasses import dataclass, fields
@@ -11,6 +15,8 @@ JPEG_VERSION = "3.1.4.1"  # the libjpeg-turbo release the engine's JPEG decoder 
 
 @dataclass
 class Settings:
+    weights: str = "4bit"
+    bits: int = 4
     source_repo: str = ""
     source_revision: str = ""
     served_name: str = ""
@@ -147,11 +153,22 @@ def _coerce(kind: type, raw):
 
 def load(local_file: Path | None = None, env: dict[str, str] | None = None) -> Settings:
     env = os.environ if env is None else env
+    files = [tomllib.loads(f.read_text()) for f in (ROOT / "recipe.toml", local_file or ROOT / "local.toml") if f.exists()]
+    choice = Settings.weights
+    for data in files:  # local.toml's choice over recipe.toml's, the environment's over both
+        for name, section in data.items():
+            if name != "weights" and "weights" in section:
+                choice = section["weights"]
+    choice = env.get("WEIGHTS", choice)
     merged: dict = {}
-    for f in (ROOT / "recipe.toml", local_file or ROOT / "local.toml"):
-        if f.exists():
-            for section in tomllib.loads(f.read_text()).values():
+    for data in files:
+        for name, section in data.items():
+            if name != "weights":
                 merged.update(section)
+        merged.update(data.get("weights", {}).get(choice, {}))
+    if choice not in files[0].get("weights", {}):
+        raise SystemExit(f"weights = {choice!r}: recipe.toml has {', '.join(files[0].get('weights', {}))}")
+    merged["weights"] = choice
     s = Settings()
     for fld in fields(Settings):
         kind = type(getattr(s, fld.name))
@@ -169,6 +186,11 @@ def validate(s: Settings) -> list[str]:
         out.append("no engine: set tensorfold_sha (local.toml) or binary")
     if not (s.model / "config.json").exists():
         out.append(f"no checkpoint at {s.model}: python3 -m mac download")
+    else:
+        q = json.loads((s.model / "config.json").read_text()).get("quantization", {})
+        if q.get("bits") != s.bits:
+            out.append(f"weights = {s.weights!r} wants {s.bits}-bit weights, but {s.model} holds {q.get('bits')}-bit ones:"
+                       f" point model_dir at the {s.weights} checkpoint ([weights.{s.weights}] in local.toml)")
     if s.drafts and not (s.drafter / "config.json").exists():
         out.append(f"drafts = true but there is no drafter at {s.drafter}: hf download {s.drafter_repo} --revision {s.drafter_revision}")
     if s.drafter_bits not in (0, 4):

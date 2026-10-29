@@ -2,11 +2,27 @@
 # environment variable of the same name in upper case overrides both (PORT=8891 python3 -m mac up).
 
 [model]
-# the publisher's own 4-bit MLX checkpoint (70 GB), served as published: `python3 -m mac download`
+# which of the publisher's own MLX checkpoints to serve, as published (`python3 -m mac download` fetches it): "4bit", the
+# default and the faster, or "8bit", nearer the bf16 release but slower, with less room for the prompt cache (README)
+weights = "4bit"
+served_name = "Ornith-1.5-122B"
+
+[weights.4bit]
+# affine 4-bit in groups of 64, the router and shared-expert gate at 8 bits (70 GB)
 source_repo = "ornith-ai/Ornith-1.5-122B-MLX-4bit"
 source_revision = "06a57aba4fbae218efc9716bcdf7d6b3035331c8"
-served_name = "Ornith-1.5-122B"
 model_dir = "~/models/Ornith-1.5-122B-MLX-4bit"
+bits = 4
+prompt_cache_gib = 32
+
+[weights.8bit]
+# affine 8-bit in groups of 64 throughout (122 GB): at four streams of 262,144 tokens the server holds 150.5 GiB, which
+# leaves 6.9 GiB of prompt cache under the engine's 70% cap
+source_repo = "ornith-ai/Ornith-1.5-122B-MLX-8bit"
+source_revision = "5e8df2d2e50478f221602f0997b8cbbec51f9c8a"
+model_dir = "~/models/Ornith-1.5-122B-MLX-8bit"
+bits = 8
+prompt_cache_gib = 6
 
 [drafter]
 # the DFlash2 drafter (bf16, 1.9 GB): `hf download incoai/Ornith-1.5-122B-DFlash2 --revision <drafter_revision>`
@@ -38,7 +54,6 @@ thinking = false                 # the template's thinking block off by default;
 max_tokens = 50176               # a reply's default ceiling: a 48k reasoning budget plus the answer
 thinking_budget = 49152          # reasoning tokens a thinking reply may take before its answer (0: no budget)
 temperature = ""                 # empty: the server's default sampling (0.6, top_k 20, top_p 0.95)
-prompt_cache_gib = 32            # kept prompt states between turns
 prompt_cache_over_cap = false
 vision = true
 vision_image_tokens = 4096       # an image's tokens at most (its longer side is scaled to fit)

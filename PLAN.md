@@ -212,3 +212,21 @@ the `optimizations` branch, with every number measured on them.
   of aa472b6d2's). Quality stays as measured on aa472b6d2.
 - Leaderboard (community-v1, the publisher's checkpoint, aa472b6d2 plus the suite commit):
   https://tensorfold.dev/benchmarks?result=5615f516-2770-4aa5-b71a-e29f25f70318
+
+## 2026-10-29: the pin moves to a410eb56a, and the publisher's 8-bit as an option
+
+PR #1125's head is now a410eb56a (branch `ornith-main`, on main a05d62003): routed blocks admit only the widths the
+kernel contract checks (4 and 8 bits, groups of 64), the shared expert's width is checked at admission, and
+`--speed-up`/`--learn` are refused for this family. The pin moves there. The 4-bit re-measured on it (runs
+`20261029-044908-quick`, `20261029-045414-mlx-speed`, `20261029-045545-prefill`, `20261029-050010-glm-vision`) is within
+about 1-3% of 6e841053e's numbers, 2-6% lower on structured and list at two and four streams, with the same checks
+passing and failing. The 4-bit stays the default.
+- `weights = "8bit"` serves `ornith-ai/Ornith-1.5-122B-MLX-8bit` at `5e8df2d2e50478f221602f0997b8cbbec51f9c8a` as
+  published (all 29 large files match the hub's sha256). Target `ornith-15-122b-8bit-native-m5`, runs
+  `20261029-015221-quick`, `20261029-020027-glm-vision`, `20261029-020057-prefill`, `20261029-021417-speed`,
+  `20261029-050046-mlx-speed`. 150.2 GiB in use at four streams of 262,144, so a 6 GiB prompt cache (32 is refused at
+  start). The target retries a start three times 20 s apart: right after a stop, the 8-bit's memory can take a few
+  seconds to free, and two early runs aborted on that.
+- Fidelity of the 8-bit, the PR's teacher-forced check against mlx-lm 0.31.3 on the same files: 1,495 of 1,536 top
+  tokens agree (MLX against its own prompt pass: 1,493).
+- No quality suite was run on either checkpoint for this change.
