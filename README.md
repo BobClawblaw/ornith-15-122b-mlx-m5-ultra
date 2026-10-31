@@ -14,7 +14,7 @@ OpenAI-compatible API and a launchd unit for the LAN. Each stream holds the chec
 windows are not supported.
 
 The engine is TensorFold [PR #1125](https://github.com/ashhart/TensorFold/pull/1125), the 27B family taught the routed
-block, at the commit `local.example.toml` names (`a410eb56a`, branch `ornith-main` of
+block, at the commit `local.example.toml` names (`078e2247f`, branch `ornith-main` of
 [BobClawblaw/TensorFold](https://github.com/BobClawblaw/TensorFold)); `python3 -m mac build` builds it.
 [PLAN.md](PLAN.md) is the work log.
 
@@ -24,33 +24,37 @@ not this recipe's default.
 
 ## Measured on this Mac
 
-Mac Studio M5 Ultra (256 GB), engine a410eb56a, the publisher's 4-bit checkpoint, four streams of 262,144 tokens, a
-32 GiB prompt cache, images and the drafter, 2026-10-29. The engine loads in 7 s; the server reports 92.9 GiB in use once
-loaded (92.6 GiB kept wired), and the 32 GiB prompt cache fits under 70% of the Mac's memory.
+Mac Studio M5 Ultra (256 GB), engine 078e2247f, the publisher's 4-bit checkpoint, four streams of 262,144 tokens, a
+32 GiB prompt cache, images and the drafter, 2026-10-31. The server reports 93.2 GiB in use once loaded (92.7 GiB kept
+wired), and the 32 GiB prompt cache fits under 70% of the Mac's memory.
 
 The recipe harness's ruler (256-token greedy replies, a distinct prompt a phase; target `ornith-15-122b-native-m5`,
-run `20261029-045414-mlx-speed`), drafts on, in tok/s summed over the streams:
+run `20261031-051355-mlx-speed`), drafts on, in tok/s summed over the streams:
 
 | Streams | prose | code | structured | list |
 |---|---|---|---|---|
-| 1 | 93.2 | 155.9 | 132.6 | 149.2 |
-| 2 | 192.5 | 265.6 | 220.5 | 298.3 |
-| 4 | 230.2 | 315.0 | 280.3 | 349.3 |
+| 1 | 129.5 | 194.1 | 164.5 | 200.7 |
+| 2 | 184.5 | 284.0 | 216.2 | 298.4 |
+| 4 | 229.0 | 348.5 | 297.5 | 352.8 |
+
+Against the previous pin a410eb56a (run `20261029-045414-mlx-speed`: 93.2/155.9/132.6/149.2 at one stream), one
+stream is 24-39% faster; that engine is the same family diff on an older TensorFold main. Two streams are 4% slower on
+prose and 2% on structured output, and four streams are within 1% on prose and faster on the rest.
 
 DFlash2 drafts one stream; the others decode plainly, and a drafted greedy reply equals the undrafted one. On this
 routed model a 16-row verify window reads most experts' weights, so drafts pay on code, lists and structured output
 and about break even on prose. Plain decoding was not re-measured on this checkpoint.
 
-Cold prompts through the server (harness `prefill`, run `20261029-045545-prefill`):
+Cold prompts through the server (harness `prefill`, run `20261031-051527-prefill`):
 
 | Prompt | thinking off | thinking on |
 |---|---|---|
-| about 2,200 tokens | 2,433 tok/s (0.92 s) | 2,196 tok/s (1.01 s) |
-| about 8,800 tokens | 2,477 tok/s (3.55 s) | 2,466 tok/s (3.55 s) |
-| about 35,000 tokens | 2,152 tok/s (16.3 s) | 2,147 tok/s (16.3 s) |
-| about 140,000 tokens | 1,328 tok/s (105.3 s) | 1,325 tok/s (105.5 s) |
+| about 2,200 tokens | 2,424 tok/s (0.91 s) | 2,246 tok/s (1.00 s) |
+| about 8,800 tokens | 2,478 tok/s (3.54 s) | 2,491 tok/s (3.53 s) |
+| about 35,000 tokens | 2,157 tok/s (16.2 s) | 2,157 tok/s (16.2 s) |
+| about 140,000 tokens | 1,322 tok/s (105.7 s) | 1,316 tok/s (106.3 s) |
 
-Serving checks (harness `quick`, run `20261031-045144-quick`):
+Serving checks (harness `quick`, run `20261031-050909-quick`):
 
 - **Pass:** seeded sampling equals its repeat and the undrafted reply (9/9). Structured output obeys its schema
   (18/18, drafted equal to plain 12/12). A resumed turn equals the same turn again and a cold one after a restart,
@@ -61,7 +65,7 @@ Serving checks (harness `quick`, run `20261031-045144-quick`):
   URLs are refused with HTTP 400 (set `vision_urls = false` to accept data URLs only).
 - **Fail:** a named tool call with thinking on repeats its call (tools 4/5).
 
-Images (harness `glm-vision`, run `20261029-050010-glm-vision`, the suite's vision checks with images sent as data
+Images (harness `glm-vision`, run `20261031-051952-glm-vision`, the suite's vision checks with images sent as data
 URLs): 4/4 right, covering two shapes with their colours and caption, text read
 exactly, three triangles counted, and two images named in order. Sixteen image requests together give the same replies
 as each alone (16/16).
@@ -96,7 +100,7 @@ Drafts (12/12), streaming, multi-turn, stop strings, the thinking toggle, copyin
 on and a 49,152-token reasoning budget (run `20261026-110423-thinking`), GSM8K scores 244/250, and the harness's ten
 word problems are all right, each with its reasoning in `reasoning_content`, none cut at 50,176 tokens.
 
-These quality runs predate the 8-bit option and the current engine pin; they were not repeated on a410eb56a.
+These quality runs predate the 8-bit option and the current engine pin; they were not repeated on a410eb56a or 078e2247f.
 
 The `optimizations` branch's own 4-bit conversion scored within a few items of these (tools 56, IFEval 114, GSM8K 241,
 MGSM 212, MMLU 300, MATH-500 432; GSM8K 245 thinking on), on its own engine. At these sizes one standard error is about
@@ -112,36 +116,47 @@ published. Its 29 large files match the sha256 sums Hugging Face lists at that r
 repository, revision, folder and prompt cache together; `validate` refuses a folder whose `config.json` holds other
 bits than the choice names.
 
-Measured on the same Mac and engine (a410eb56a), four streams of 262,144 tokens, images and the drafter, 2026-10-29,
-target `ornith-15-122b-8bit-native-m5`. The server reports 150.2 GiB in use once loaded (149.8 GiB kept wired), which
-leaves 7.3 GiB under the engine's 70% cap: the recipe keeps a **6 GiB prompt cache** with this checkpoint (the server
+Measured on the same Mac and engine (078e2247f), four streams of 262,144 tokens, images and the drafter, 2026-10-31,
+target `ornith-15-122b-8bit-native-m5`. The server reports 150.2 GiB in use once loaded (149.9 GiB kept wired), which
+leaves 7.2 GiB under the engine's 70% cap: the recipe keeps a **6 GiB prompt cache** with this checkpoint (the server
 refuses 32 GiB at start; fewer streams, or `prompt_cache_over_cap`, leave more).
 
-Ruler (run `20261029-050046-mlx-speed`), drafts on, tok/s summed over the streams:
+Ruler (run `20261031-052945-mlx-speed`), drafts on, tok/s summed over the streams:
 
 | Streams | prose | code | structured | list |
 |---|---|---|---|---|
-| 1 | 57.3 | 112.1 | 91.0 | 83.7 |
-| 2 | 116.0 | 171.5 | 146.5 | 202.3 |
-| 4 | 153.8 | 239.6 | 188.4 | 247.4 |
+| 1 | 79.5 | 138.2 | 119.2 | 103.6 |
+| 2 | 114.0 | 168.7 | 139.4 | 185.6 |
+| 4 | 145.4 | 229.0 | 171.6 | 216.3 |
 
-One stream decodes at about 60% of the 4-bit's speed on prose and 56% on lists. The suite's drafts check gives 86 tok/s
-drafted against 57 undrafted on the same requests (1.5x; the 4-bit's, run `20261029-044908-quick`: 136 against 84, 1.6x).
+One stream decodes at about 61% of the 4-bit's speed on prose and 52% on lists. The suite's drafts check gives 105 tok/s
+drafted against 55 undrafted on the same requests (1.9x; the 4-bit's, run `20261031-050909-quick`: 169 against 85, 2.0x).
+Against a410eb56a on fresh servers in the same session (the ruler alone: new, old, new), one stream is 21-42% faster,
+two streams are within -3% to +5%, and four streams are 2-5% slower (prose 145 against 149, code 222 against 234, lists
+238-241 against 247). The one-stream gain is TensorFold main's lane loop: with `TF_QWEN27_LANES=0` the new engine
+decodes one stream at a410eb56a's speed. The four-stream cost remains with either loop.
 
-Cold prompts (run `20261029-020057-prefill`):
+Cold prompts (run `20261031-053210-prefill`):
 
 | Prompt | thinking off | thinking on |
 |---|---|---|
-| about 2,200 tokens | 1,642 tok/s (1.35 s) | 1,640 tok/s (1.35 s) |
-| about 8,800 tokens | 1,728 tok/s (5.09 s) | 1,726 tok/s (5.08 s) |
-| about 35,000 tokens | 1,573 tok/s (22.2 s) | 1,560 tok/s (22.5 s) |
-| about 140,000 tokens | 1,078 tok/s (129.7 s) | 1,051 tok/s (132.9 s) |
+| about 2,200 tokens | 1,245 tok/s (1.79 s) | 1,655 tok/s (1.34 s) |
+| about 8,800 tokens | 1,451 tok/s (6.03 s) | 1,432 tok/s (6.11 s) |
+| about 35,000 tokens | 1,443 tok/s (24.2 s) | 1,429 tok/s (24.5 s) |
+| about 140,000 tokens | 988 tok/s (141.3 s) | 968 tok/s (144.7 s) |
 
-Serving checks (run `20261029-015221-quick`) all pass but image URLs, as with the 4-bit: tools 5/5 (the named call
-with thinking on included), structured output 18/18 (drafted equal to plain 12/12), seeded sampling 9/9, a resumed turn
-equal to a cold one after a restart (first token 0.09 s against 3.9 s cold), sixteen streams together equal to alone
+These vary with how full the 6 GiB prompt cache is, since it takes the last of the memory under the 70% cap. On fresh
+servers in the same session, about 15,000-token cold prompts ran at 1,361-1,602 tok/s with the cache on, on this engine
+and on a410eb56a alike (1,390-1,600 there), and at 1,607-1,631 tok/s every time with the prompt cache off. One gap is not explained: the harness's prefill run
+on a410eb56a that morning (`20261031-060351-prefill`) measured 1,730 tok/s at 8,800 tokens and 1,004 at 140,000, which
+the direct prompts above did not reproduce. The first 2,200-token prompt above, thinking off, was the run's first
+request.
+
+Serving checks (run `20261031-052126-quick`) all pass: tools 5/5 (the named call with thinking on included), image
+URLs as with the 4-bit, structured output 18/18 (drafted equal to plain 12/12), seeded sampling 9/9, a resumed turn
+equal to a cold one after a restart (first token 0.07 s against 3.9 s cold), sixteen streams together equal to alone
 (12/12), the 60-turn soak (60/60), drafts, streaming, stop strings, thinking, copying, max-tokens and multi-turn recall.
-Images (run `20261029-020027-glm-vision`): 4/4, and sixteen requests together 16/16; video is refused as above.
+Images (run `20261031-053847-glm-vision`): 4/4, and sixteen requests together 16/16; video is refused as above.
 
 Fidelity: the engine teacher-forced on MLX's greedy replies (mlx-lm 0.31.3, MLX 0.32.2, the same 8-bit files; six chat
 prompts of 256 tokens each, the check PR #1125 uses for the 4-bit) picks MLX's top token at 1,495 of 1,536 positions
