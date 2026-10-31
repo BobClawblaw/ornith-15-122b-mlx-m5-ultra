@@ -50,15 +50,16 @@ Cold prompts through the server (harness `prefill`, run `20261029-045545-prefill
 | about 35,000 tokens | 2,152 tok/s (16.3 s) | 2,147 tok/s (16.3 s) |
 | about 140,000 tokens | 1,328 tok/s (105.3 s) | 1,325 tok/s (105.5 s) |
 
-Serving checks (harness `quick`, run `20261029-044908-quick`):
+Serving checks (harness `quick`, run `20261031-045144-quick`):
 
 - **Pass:** seeded sampling equals its repeat and the undrafted reply (9/9). Structured output obeys its schema
   (18/18, drafted equal to plain 12/12). A resumed turn equals the same turn again and a cold one after a restart,
   with 5,624 of 5,643 tokens from the cache (first token 0.07 s against 2.6 s cold). Sixteen streams together match
   the same requests alone (12/12), and a 60-turn soak beside a decoding stream matches too (60/60). Drafts (12/12),
-  stop strings, max-tokens, streaming, the thinking toggle, copying and multi-turn recall (8/8) pass.
-- **Fail:** a named tool call with thinking on repeats its call (tools 4/5). Image URLs are refused: the recipe serves
-  `--vision` without `--vision-urls`, so send images as data URLs.
+  stop strings, max-tokens, streaming, the thinking toggle, copying and multi-turn recall (8/8) pass. Image URLs:
+  the recipe serves `--vision-urls`, so a public HTTPS image is fetched and answered, while loopback and plain-HTTP
+  URLs are refused with HTTP 400 (set `vision_urls = false` to accept data URLs only).
+- **Fail:** a named tool call with thinking on repeats its call (tools 4/5).
 
 Images (harness `glm-vision`, run `20261029-050010-glm-vision`, the suite's vision checks with images sent as data
 URLs): 4/4 right, covering two shapes with their colours and caption, text read
