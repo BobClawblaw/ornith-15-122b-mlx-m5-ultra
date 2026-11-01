@@ -14,8 +14,10 @@ OpenAI-compatible API and a launchd unit for the LAN. Each stream holds the chec
 windows are not supported.
 
 The engine is TensorFold [PR #1125](https://github.com/ashhart/TensorFold/pull/1125), the 27B family taught the routed
-block, at the commit `local.example.toml` names (`078e2247f`, branch `ornith-main` of
-[BobClawblaw/TensorFold](https://github.com/BobClawblaw/TensorFold)); `python3 -m mac build` builds it.
+block, plus [PR #1799](https://github.com/ashhart/TensorFold/pull/1799) (stacked on it: the experts' prompt sort as one
+threadgroup instead of one thread), at the commit `local.example.toml` names (`3b77807c3`, branch `ornith-route-count`
+of [BobClawblaw/TensorFold](https://github.com/BobClawblaw/TensorFold), also tagged `ornith-3b77807c3`);
+`python3 -m mac build` builds it.
 [PLAN.md](PLAN.md) is the work log.
 
 Faster variants (wider prompt chunks, our own conversion) live on the
@@ -24,9 +26,10 @@ not this recipe's default.
 
 ## Measured on this Mac
 
-Mac Studio M5 Ultra (256 GB), engine 078e2247f, the publisher's 4-bit checkpoint, four streams of 262,144 tokens, a
-32 GiB prompt cache, images and the drafter, 2026-10-31. The server reports 93.2 GiB in use once loaded (92.7 GiB kept
-wired), and the 32 GiB prompt cache fits under 70% of the Mac's memory.
+Mac Studio M5 Ultra (256 GB), engine 078e2247f (#1125 alone) unless a run below names 3b77807c3, the publisher's
+4-bit checkpoint, four streams of 262,144 tokens, a 32 GiB prompt cache, images and the drafter, 2026-10-31. The server
+reports 93.2 GiB in use once loaded (92.7 GiB kept wired), and the 32 GiB prompt cache fits under 70% of the Mac's
+memory.
 
 The recipe harness's ruler (256-token greedy replies, a distinct prompt a phase; target `ornith-15-122b-native-m5`,
 run `20261031-051355-mlx-speed`), drafts on, in tok/s summed over the streams:
@@ -45,14 +48,22 @@ DFlash2 drafts one stream; the others decode plainly, and a drafted greedy reply
 routed model a 16-row verify window reads most experts' weights, so drafts pay on code, lists and structured output
 and about break even on prose. Plain decoding was not re-measured on this checkpoint.
 
-Cold prompts through the server (harness `prefill`, run `20261031-051527-prefill`):
+3b77807c3 changes only the prompt path's expert sort; decode does not run it. Its one-stream ruler on the running
+service (run `20261031-200650-quick`) is 132.7/191.6/160.6/193.8, as above.
+
+Cold prompts through the server on 3b77807c3 (harness `prefill`, run `20261031-201115-prefill`, against the running
+service), one prompt a size, with 078e2247f's run (`20261031-051527-prefill`) in brackets:
 
 | Prompt | thinking off | thinking on |
 |---|---|---|
-| about 2,200 tokens | 2,424 tok/s (0.91 s) | 2,246 tok/s (1.00 s) |
-| about 8,800 tokens | 2,478 tok/s (3.54 s) | 2,491 tok/s (3.53 s) |
-| about 35,000 tokens | 2,157 tok/s (16.2 s) | 2,157 tok/s (16.2 s) |
-| about 140,000 tokens | 1,322 tok/s (105.7 s) | 1,316 tok/s (106.3 s) |
+| about 2,200 tokens | 2,963 tok/s, 0.75 s (2,424) | 2,654 tok/s, 0.84 s (2,246) |
+| about 8,800 tokens | 2,929 tok/s, 2.99 s (2,478) | 2,958 tok/s, 2.95 s (2,491) |
+| about 35,000 tokens | 2,204 tok/s, 15.9 s (2,157) | 2,344 tok/s, 14.9 s (2,157) |
+| about 140,000 tokens | 1,413 tok/s, 99.1 s (1,322) | 1,372 tok/s, 102.0 s (1,316) |
+
+Long prompts gain less, likely because attention, which the sort change does not touch, takes more of their time. On
+`tf-qwen27-run` (two runs each), 8,192-token prompts went from 2,316-2,326 to 2,632-2,680 tok/s and 32,768-token
+prompts from 2,118-2,128 to 2,443-2,448, with byte-identical prompt state and replies (PR #1799).
 
 Serving checks (harness `quick`, run `20261031-050909-quick`):
 
@@ -65,10 +76,13 @@ Serving checks (harness `quick`, run `20261031-050909-quick`):
   URLs are refused with HTTP 400 (set `vision_urls = false` to accept data URLs only).
 - **Fail:** a named tool call with thinking on repeats its call (tools 4/5).
 
+On 3b77807c3 (run `20261031-200650-quick`, against the running service, so its cold turn follows no restart) every
+check gives the same result, the tools failure included.
+
 Images (harness `glm-vision`, run `20261031-051952-glm-vision`, the suite's vision checks with images sent as data
 URLs): 4/4 right, covering two shapes with their colours and caption, text read
 exactly, three triangles counted, and two images named in order. Sixteen image requests together give the same replies
-as each alone (16/16).
+as each alone (16/16). The same on 3b77807c3 (run `20261031-201109-glm-vision`).
 
 Video is not supported. The checkpoint declares video input, but TensorFold's qwen27 family has no video path (only
 its GLM and Flash Next families do), so the server answers `video_url` parts with HTTP 400 ("content parts must be text
@@ -100,7 +114,8 @@ Drafts (12/12), streaming, multi-turn, stop strings, the thinking toggle, copyin
 on and a 49,152-token reasoning budget (run `20261026-110423-thinking`), GSM8K scores 244/250, and the harness's ten
 word problems are all right, each with its reasoning in `reasoning_content`, none cut at 50,176 tokens.
 
-These quality runs predate the 8-bit option and the current engine pin; they were not repeated on a410eb56a or 078e2247f.
+These quality runs predate the 8-bit option and the current engine pin; they were not repeated on a410eb56a, 078e2247f
+or 3b77807c3.
 
 The `optimizations` branch's own 4-bit conversion scored within a few items of these (tools 56, IFEval 114, GSM8K 241,
 MGSM 212, MMLU 300, MATH-500 432; GSM8K 245 thinking on), on its own engine. At these sizes one standard error is about
@@ -116,10 +131,11 @@ published. Its 29 large files match the sha256 sums Hugging Face lists at that r
 repository, revision, folder and prompt cache together; `validate` refuses a folder whose `config.json` holds other
 bits than the choice names.
 
-Measured on the same Mac and engine (078e2247f), four streams of 262,144 tokens, images and the drafter, 2026-10-31,
-target `ornith-15-122b-8bit-native-m5`. The server reports 150.2 GiB in use once loaded (149.9 GiB kept wired), which
-leaves 7.2 GiB under the engine's 70% cap: the recipe keeps a **6 GiB prompt cache** with this checkpoint (the server
-refuses 32 GiB at start; fewer streams, or `prompt_cache_over_cap`, leave more).
+Measured on the same Mac with engine 078e2247f (not re-measured on 3b77807c3, which speeds up prompts), four streams
+of 262,144 tokens, images and the drafter, 2026-10-31, target `ornith-15-122b-8bit-native-m5`. The server reports
+150.2 GiB in use once loaded (149.9 GiB kept wired), which leaves 7.2 GiB under the engine's 70% cap: the recipe keeps
+a **6 GiB prompt cache** with this checkpoint (the server refuses 32 GiB at start; fewer streams, or
+`prompt_cache_over_cap`, leave more).
 
 Ruler (run `20261031-052945-mlx-speed`), drafts on, tok/s summed over the streams:
 
