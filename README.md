@@ -91,10 +91,11 @@ or image_url"). Both of the suite's video cases fail that way.
 The engine's own checks for PR #1125 (kernel contract, attention precision, chunk independence, a dense 27B A/B
 against TensorFold main) are in the PR.
 
-On the [TensorFold leaderboard](https://tensorfold.dev/benchmarks?result=5615f516-2770-4aa5-b71a-e29f25f70318) (the
-board's community-v1 suite, the publisher's checkpoint at 06a57aba with the drafter; engine aa472b6d2 plus the suite
-commit, 2026-10-26), in stream delivery tok/s: code 208.6 and chat 121.7 at temperature 1, code 202.2 and chat 96.2
-greedy.
+On the [TensorFold leaderboard](https://tensorfold.dev/benchmarks?result=3657fa4e-5d75-4881-ba7f-0d5f1840269f) (the
+board's community-v1 suite, the publisher's checkpoint at 06a57aba with the drafter; engine 3b77807c3 plus the suite
+commit, 2026-10-31), in stream delivery tok/s: code 211.3 and chat 117.6 at temperature 1, code 234.5 and chat 122.8
+greedy. The suite times short prompts, so it shows decode: 078e2247f's run that morning gave 208.5, 117.2, 234.7 and
+123.6.
 
 Quality, the recipe harness's suites on the same checkpoint and settings with engine aa472b6d2, the PR's previous head
 (the same family code on an older TensorFold main; greedy tokens on the PR's chunk check are identical), greedy, one
